@@ -1,0 +1,30 @@
+# Minimum compute requirements for Subnet 58
+
+validator:
+  cpu:
+    min_cores: 2
+    recommended_cores: 4
+  ram:
+    min_gb: 4
+    recommended_gb: 8
+  storage:
+    min_gb: 20
+    recommended_gb: 50
+  gpu:
+    required: false
+
+miner:
+  cpu:
+    min_cores: 1
+    recommended_cores: 2
+  ram:
+    min_gb: 2
+    recommended_gb: 4
+  storage:
+    min_gb: 10
+    recommended_gb: 20
+  gpu:
+    required: false
+  network:
+    # Miner must have a running AI provider API
+    note: "Requires a DRAIN-compatible AI provider at API_URL"
