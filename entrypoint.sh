@@ -16,23 +16,29 @@ echo "[entrypoint] Setting up wallet: ${WALLET_NAME} / ${HOTKEY_NAME}"
 # Create wallet directory structure
 mkdir -p "${WALLET_DIR}/hotkeys"
 
-# Decode hotkey (REQUIRED)
-if [ -z "$BT_HOTKEY_B64" ]; then
-    echo "[entrypoint] ERROR: BT_HOTKEY_B64 env var is required"
-    exit 1
+# Check if wallet keys are configured
+if [ -z "$BT_HOTKEY_B64" ] || [ -z "$BT_COLDKEYPUB_B64" ]; then
+    echo "[entrypoint] ================================================"
+    echo "[entrypoint] Wallet keys not configured yet."
+    echo "[entrypoint] Set these env vars and redeploy:"
+    echo "[entrypoint]   BT_HOTKEY_B64"
+    echo "[entrypoint]   BT_COLDKEYPUB_B64"
+    echo "[entrypoint]   BT_COLDKEY_B64"
+    echo "[entrypoint] ================================================"
+    echo "[entrypoint] Waiting for configuration... (sleeping)"
+    # Sleep forever so Railway doesn't restart-loop
+    while true; do sleep 3600; done
 fi
+
+# Decode hotkey
 echo "$BT_HOTKEY_B64" | base64 -d > "${WALLET_DIR}/hotkeys/${HOTKEY_NAME}"
 echo "[entrypoint] Hotkey written to ${WALLET_DIR}/hotkeys/${HOTKEY_NAME}"
 
-# Decode coldkey public (REQUIRED)
-if [ -z "$BT_COLDKEYPUB_B64" ]; then
-    echo "[entrypoint] ERROR: BT_COLDKEYPUB_B64 env var is required"
-    exit 1
-fi
+# Decode coldkey public
 echo "$BT_COLDKEYPUB_B64" | base64 -d > "${WALLET_DIR}/coldkeypub"
 echo "[entrypoint] Coldkeypub written"
 
-# Decode coldkey encrypted (REQUIRED for set_weights)
+# Decode coldkey encrypted (required for set_weights)
 if [ -z "$BT_COLDKEY_B64" ]; then
     echo "[entrypoint] WARNING: BT_COLDKEY_B64 not set - set_weights may fail"
 else
