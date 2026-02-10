@@ -2,6 +2,7 @@
 # Base neuron class for Subnet 58
 
 import copy
+import time
 import bittensor as bt
 from abc import ABC, abstractmethod
 
@@ -89,15 +90,21 @@ class BaseNeuron(ABC):
         self.save_state()
 
     def check_registered(self):
-        if not self.subtensor.is_hotkey_registered(
+        while not self.subtensor.is_hotkey_registered(
             netuid=self.config.netuid,
             hotkey_ss58=self.wallet.hotkey.ss58_address,
         ):
-            bt.logging.error(
+            bt.logging.warning(
                 f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}. "
-                f"Please register using `btcli subnets register` first."
+                f"Waiting for registration... (retrying in 60s)"
             )
-            exit()
+            time.sleep(60)
+            # Refresh metagraph to pick up new registration
+            try:
+                self.metagraph = self.subtensor.metagraph(self.config.netuid)
+            except Exception as e:
+                bt.logging.warning(f"Failed to refresh metagraph: {e}")
+        bt.logging.info(f"Hotkey {self.wallet.hotkey.ss58_address} is registered on netuid {self.config.netuid}.")
 
     def should_sync_metagraph(self):
         return (
