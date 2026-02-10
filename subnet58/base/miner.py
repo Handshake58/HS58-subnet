@@ -34,7 +34,7 @@ class BaseMinerNeuron(BaseNeuron):
             )
 
         # The axon handles request processing
-        self.axon = bt.axon(
+        self.axon = bt.Axon(
             wallet=self.wallet,
             config=self.config() if callable(self.config) else self.config,
         )

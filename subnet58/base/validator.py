@@ -29,7 +29,7 @@ class BaseValidatorNeuron(BaseNeuron):
         super().__init__(config=config)
 
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
-        self.dendrite = bt.dendrite(wallet=self.wallet)
+        self.dendrite = bt.Dendrite(wallet=self.wallet)
         bt.logging.info(f"Dendrite: {self.dendrite}")
 
         # Scoring weights
@@ -51,7 +51,7 @@ class BaseValidatorNeuron(BaseNeuron):
     def serve_axon(self):
         bt.logging.info("Serving axon to chain...")
         try:
-            self.axon = bt.axon(wallet=self.wallet, config=self.config)
+            self.axon = bt.Axon(wallet=self.wallet, config=self.config)
             self.subtensor.serve_axon(
                 netuid=self.config.netuid, axon=self.axon
             )
