@@ -75,7 +75,7 @@ if [ "$NEURON_TYPE" = "miner" ]; then
     AXON_PORT="${AXON_PORT:-8091}"
     echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL}, port=${AXON_PORT})..."
 
-    MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT"
+    MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT --logging.debug"
 
     # If external host is set, resolve domain to IP (Bittensor only accepts IP addresses)
     if [ -n "$AXON_EXTERNAL_IP" ]; then
