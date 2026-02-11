@@ -56,7 +56,7 @@ class Validator(BaseValidatorNeuron):
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
         bt.logging.info(f"Querying {len(axons)} miners...")
-        responses = await self.dendrite.query(
+        responses = self.dendrite.query(
             axons=axons,
             synapse=ProviderCheck(),
             timeout=self.config.neuron.timeout,
