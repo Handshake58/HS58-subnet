@@ -77,9 +77,17 @@ if [ "$NEURON_TYPE" = "miner" ]; then
 
     MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT"
 
-    # If external IP is set (Railway domain), register it on-chain so validators can reach us
+    # If external host is set, resolve domain to IP (Bittensor only accepts IP addresses)
     if [ -n "$AXON_EXTERNAL_IP" ]; then
-        MINER_ARGS="$MINER_ARGS --axon.external_ip $AXON_EXTERNAL_IP"
+        # Check if it's already an IP or a hostname that needs resolving
+        if echo "$AXON_EXTERNAL_IP" | grep -qP '^\d+\.\d+\.\d+\.\d+$'; then
+            RESOLVED_IP="$AXON_EXTERNAL_IP"
+        else
+            echo "[entrypoint] Resolving ${AXON_EXTERNAL_IP} to IP..."
+            RESOLVED_IP=$(python3 -c "import socket; print(socket.getaddrinfo('${AXON_EXTERNAL_IP}', None, socket.AF_INET)[0][4][0])")
+            echo "[entrypoint] Resolved to ${RESOLVED_IP}"
+        fi
+        MINER_ARGS="$MINER_ARGS --axon.external_ip $RESOLVED_IP"
     fi
     if [ -n "$AXON_EXTERNAL_PORT" ]; then
         MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_EXTERNAL_PORT"
