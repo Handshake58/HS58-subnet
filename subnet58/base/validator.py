@@ -6,7 +6,11 @@ import numpy as np
 import asyncio
 import argparse
 import threading
+import nest_asyncio
 import bittensor as bt
+
+# Allow nested event loops (required for bittensor v7+ dendrite.query)
+nest_asyncio.apply()
 
 from typing import List, Union
 from traceback import print_exception

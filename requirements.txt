@@ -1,5 +1,7 @@
 bittensor>=7.0.0
+bittensor-cli>=9.0.0
 web3>=6.0.0
 eth-account>=0.10.0
 requests>=2.31.0
 numpy>=1.24.0
+nest_asyncio>=1.5.0

@@ -41,9 +41,10 @@ fi
 echo "$BT_HOTKEY_B64" | base64 -d > "${WALLET_DIR}/hotkeys/${HOTKEY_NAME}"
 echo "[entrypoint] Hotkey written to ${WALLET_DIR}/hotkeys/${HOTKEY_NAME}"
 
-# Decode coldkey public
+# Decode coldkey public (write both formats for bittensor compatibility)
 echo "$BT_COLDKEYPUB_B64" | base64 -d > "${WALLET_DIR}/coldkeypub"
-echo "[entrypoint] Coldkeypub written"
+cp "${WALLET_DIR}/coldkeypub" "${WALLET_DIR}/coldkeypub.txt"
+echo "[entrypoint] Coldkeypub written (coldkeypub + coldkeypub.txt)"
 
 # Decode coldkey encrypted (required for set_weights / registration)
 if [ -z "$BT_COLDKEY_B64" ]; then
