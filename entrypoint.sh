@@ -72,17 +72,28 @@ if [ "$NEURON_TYPE" = "miner" ]; then
         while true; do sleep 3600; done
     fi
 
-    echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL})..."
-    exec python neurons/miner.py \
-        --netuid 58 \
-        --wallet.name "$WALLET_NAME" \
-        --wallet.hotkey "$HOTKEY_NAME" \
-        "$@"
+    AXON_PORT="${AXON_PORT:-8091}"
+    echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL}, port=${AXON_PORT})..."
+
+    MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT"
+
+    # If external IP is set (Railway domain), register it on-chain so validators can reach us
+    if [ -n "$AXON_EXTERNAL_IP" ]; then
+        MINER_ARGS="$MINER_ARGS --axon.external_ip $AXON_EXTERNAL_IP"
+    fi
+    if [ -n "$AXON_EXTERNAL_PORT" ]; then
+        MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_EXTERNAL_PORT"
+    else
+        MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_PORT"
+    fi
+
+    exec python neurons/miner.py $MINER_ARGS "$@"
 else
-    echo "[entrypoint] Starting VALIDATOR..."
+    echo "[entrypoint] Starting VALIDATOR (axon disabled - validators don't need incoming connections)..."
     exec python neurons/validator.py \
         --netuid 58 \
         --wallet.name "$WALLET_NAME" \
         --wallet.hotkey "$HOTKEY_NAME" \
+        --neuron.axon_off \
         "$@"
 fi
