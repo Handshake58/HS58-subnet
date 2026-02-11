@@ -60,8 +60,15 @@ class BaseMinerNeuron(BaseNeuron):
             f"Serving miner axon on network: {self.config.subtensor.chain_endpoint} "
             f"with netuid: {self.config.netuid}"
         )
-        self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
-        self.axon.start()
+        try:
+            self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
+            self.axon.start()
+            bt.logging.info("Axon serving successfully.")
+        except Exception as e:
+            bt.logging.warning(
+                f"Axon serve failed (expected on Railway/no public port): {e}. "
+                f"Miner will still run and respond to queries via internal networking."
+            )
 
         bt.logging.info(f"Miner starting at block: {self.block}")
 

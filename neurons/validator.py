@@ -81,7 +81,7 @@ class Validator(BaseValidatorNeuron):
             rewards[i] = score
 
             if score > 0:
-                wallet = getattr(response, "polygon_wallet", "?") or "?"
+                wallet = self._get_field(response, "polygon_wallet") or "?"
                 claims = self.drain_scanner.get_claims(wallet) if wallet != "?" else 0
                 bt.logging.info(
                     f"  UID {uid}: score={score:.4f} "
@@ -96,8 +96,17 @@ class Validator(BaseValidatorNeuron):
 
         self.update_scores(rewards, miner_uids)
 
+    @staticmethod
+    def _get_field(response, field: str, default=None):
+        """Get a field from a response, handling both dict and Synapse objects."""
+        if response is None:
+            return default
+        if isinstance(response, dict):
+            return response.get(field, default)
+        return getattr(response, field, default)
+
     def _score_miner(
-        self, response: ProviderCheck, hotkey: str, max_claims: float
+        self, response, hotkey: str, max_claims: float
     ) -> float:
         """
         Score a single miner based on:
@@ -105,7 +114,8 @@ class Validator(BaseValidatorNeuron):
         - DRAIN Claims (60%): How much USDC was claimed through their wallet?
         """
         # No response or missing wallet = offline
-        if response is None or not response.polygon_wallet:
+        polygon_wallet = self._get_field(response, "polygon_wallet")
+        if response is None or not polygon_wallet:
             return 0.0
 
         # Verify wallet ownership (ECDSA signature)
@@ -117,14 +127,14 @@ class Validator(BaseValidatorNeuron):
         score = WEIGHT_AVAILABILITY
 
         # DRAIN Claims score (60%)
-        claims = self.drain_scanner.get_claims(response.polygon_wallet)
+        claims = self.drain_scanner.get_claims(polygon_wallet)
         if claims > 0 and max_claims > 0:
             claim_score = claims / max_claims  # 0.0 - 1.0 (relative to top provider)
             score += WEIGHT_CLAIMS * claim_score
 
         return score
 
-    def _verify_ownership(self, response: ProviderCheck, hotkey: str) -> bool:
+    def _verify_ownership(self, response, hotkey: str) -> bool:
         """
         Verify that the miner owns the claimed Polygon wallet.
         
@@ -132,7 +142,10 @@ class Validator(BaseValidatorNeuron):
         Polygon private key. We recover the signer and check it matches
         the claimed wallet address.
         """
-        if not response.wallet_proof or not response.polygon_wallet:
+        wallet_proof = self._get_field(response, "wallet_proof")
+        polygon_wallet = self._get_field(response, "polygon_wallet")
+
+        if not wallet_proof or not polygon_wallet:
             return False
 
         try:
@@ -141,10 +154,10 @@ class Validator(BaseValidatorNeuron):
             recovered = Account.recover_message(
                 msg,
                 signature=bytes.fromhex(
-                    response.wallet_proof.replace("0x", "")
+                    wallet_proof.replace("0x", "")
                 ),
             )
-            return recovered.lower() == response.polygon_wallet.lower()
+            return recovered.lower() == polygon_wallet.lower()
         except Exception as e:
             bt.logging.trace(f"Wallet verification error: {e}")
             return False
