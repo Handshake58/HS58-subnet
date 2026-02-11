@@ -39,9 +39,10 @@ class BaseMinerNeuron(BaseNeuron):
         axon_external_port = getattr(self.config.axon, 'external_port', None)
         bt.logging.info(f"Creating Axon (port={axon_port}, external_ip={axon_external_ip}, external_port={axon_external_port})...")
 
-        # Pass IP/port directly to avoid Axon auto-detecting external IP (hangs on Railway)
+        # Pass all params directly to avoid Axon auto-detecting IPs (hangs on Railway)
         axon_kwargs = {
             'wallet': self.wallet,
+            'ip': '0.0.0.0',  # Bind on all interfaces
             'port': int(axon_port),
         }
         if axon_external_ip:
