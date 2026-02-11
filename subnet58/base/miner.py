@@ -34,14 +34,22 @@ class BaseMinerNeuron(BaseNeuron):
             )
 
         # The axon handles request processing
-        bt.logging.info("Creating Axon...")
-        bt.logging.info(f"  axon.port={getattr(self.config.axon, 'port', '?')}")
-        bt.logging.info(f"  axon.external_ip={getattr(self.config.axon, 'external_ip', '?')}")
-        bt.logging.info(f"  axon.external_port={getattr(self.config.axon, 'external_port', '?')}")
-        self.axon = bt.Axon(
-            wallet=self.wallet,
-            config=self.config() if callable(self.config) else self.config,
-        )
+        axon_port = getattr(self.config.axon, 'port', 8091)
+        axon_external_ip = getattr(self.config.axon, 'external_ip', None)
+        axon_external_port = getattr(self.config.axon, 'external_port', None)
+        bt.logging.info(f"Creating Axon (port={axon_port}, external_ip={axon_external_ip}, external_port={axon_external_port})...")
+
+        # Pass IP/port directly to avoid Axon auto-detecting external IP (hangs on Railway)
+        axon_kwargs = {
+            'wallet': self.wallet,
+            'port': int(axon_port),
+        }
+        if axon_external_ip:
+            axon_kwargs['external_ip'] = str(axon_external_ip)
+        if axon_external_port:
+            axon_kwargs['external_port'] = int(axon_external_port)
+
+        self.axon = bt.Axon(**axon_kwargs)
         bt.logging.info("Axon created successfully.")
 
         bt.logging.info(f"Attaching forward function to miner axon.")
