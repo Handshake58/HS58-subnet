@@ -88,15 +88,16 @@ class BaseMinerNeuron(BaseNeuron):
 
         try:
             while not self.should_exit:
-                while (
-                    self.block - self.metagraph.last_update[self.uid]
-                    < self.config.neuron.epoch_length
-                ):
+                self.sync()
+                self.step += 1
+                # Sleep for one epoch before next sync
+                # epoch_length blocks * ~12 sec/block
+                epoch_sleep = max(self.config.neuron.epoch_length * 12, 120)
+                bt.logging.info(f"Epoch {self.step} done, sleeping {epoch_sleep}s until next epoch...")
+                for _ in range(epoch_sleep):
                     time.sleep(1)
                     if self.should_exit:
                         break
-                self.sync()
-                self.step += 1
         except KeyboardInterrupt:
             self.axon.stop()
             bt.logging.success("Miner killed by keyboard interrupt.")

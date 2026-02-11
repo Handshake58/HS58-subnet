@@ -103,5 +103,6 @@ else
         --wallet.name "$WALLET_NAME" \
         --wallet.hotkey "$HOTKEY_NAME" \
         --neuron.axon_off \
+        --logging.debug \
         "$@"
 fi
