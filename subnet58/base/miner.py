@@ -34,10 +34,15 @@ class BaseMinerNeuron(BaseNeuron):
             )
 
         # The axon handles request processing
+        bt.logging.info("Creating Axon...")
+        bt.logging.info(f"  axon.port={getattr(self.config.axon, 'port', '?')}")
+        bt.logging.info(f"  axon.external_ip={getattr(self.config.axon, 'external_ip', '?')}")
+        bt.logging.info(f"  axon.external_port={getattr(self.config.axon, 'external_port', '?')}")
         self.axon = bt.Axon(
             wallet=self.wallet,
             config=self.config() if callable(self.config) else self.config,
         )
+        bt.logging.info("Axon created successfully.")
 
         bt.logging.info(f"Attaching forward function to miner axon.")
         self.axon.attach(
