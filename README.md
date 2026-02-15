@@ -39,8 +39,8 @@ Normalization: Relative to top provider (Bittensor standard).
 ### Installation
 
 ```bash
-git clone https://github.com/Handshake58/HS58-validator.git
-cd HS58-validator
+git clone https://github.com/Handshake58/HS58-subnet.git
+cd HS58-subnet
 pip install -e .
 ```
 
@@ -112,7 +112,7 @@ The validator will:
 ## Architecture
 
 ```
-HS58-validator/
+HS58-subnet/
 ├── neurons/
 │   ├── miner.py              # Miner entry point
 │   └── validator.py           # Validator entry point

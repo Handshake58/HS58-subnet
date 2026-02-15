@@ -34,7 +34,7 @@ setup(
     description="Handshake58 - Bittensor Subnet 58: DRAIN Protocol scoring for AI providers",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Handshake58/HS58-validator",
+    url="https://github.com/Handshake58/HS58-subnet",
     author="Handshake58",
     packages=find_packages(),
     include_package_data=True,
