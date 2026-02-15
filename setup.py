@@ -38,7 +38,7 @@ setup(
     author="Handshake58",
     packages=find_packages(),
     include_package_data=True,
-    license="MIT",
+    license="PolyForm-Shield-1.0.0",
     python_requires=">=3.9",
     install_requires=requirements,
 )
