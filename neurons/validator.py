@@ -18,7 +18,7 @@ import subnet58
 from subnet58.protocol import ProviderCheck
 from subnet58.base.validator import BaseValidatorNeuron
 from subnet58.validator.drain_scanner import DrainScanner
-from subnet58.config import WEIGHT_CLAIMS, WEIGHT_AVAILABILITY
+from subnet58.config import WEIGHT_CLAIMS, WEIGHT_AVAILABILITY, MARKETPLACE_URL
 
 
 class Validator(BaseValidatorNeuron):

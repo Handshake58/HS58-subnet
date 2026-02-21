@@ -38,6 +38,11 @@ LOG_QUERY_CHUNK_SIZE = int(os.getenv("LOG_CHUNK_SIZE", "2000"))
 BLOCKS_PER_DAY = 43200
 
 # ---------------------------------------------------------------------------
+# Subnet Hyperparameters (set on-chain via btcli, documented here)
+# ---------------------------------------------------------------------------
+BURN_RATE = 0.9  # 90% of recycled TAO is burned
+
+# ---------------------------------------------------------------------------
 # Miner Config (from environment)
 # ---------------------------------------------------------------------------
 MINER_POLYGON_WALLET = os.getenv("POLYGON_WALLET")

@@ -47,7 +47,9 @@ Validator → sets weights on Bittensor → Provider earns TAO
 | **DRAIN Claims** | 60% | ChannelClaimed events on Polygon | 7 days rolling |
 | **Availability** | 40% | Synapse response with wallet proof | Current |
 
-Normalization: Relative to top provider (Bittensor standard).
+Normalization: Relative to top provider **within the same category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round.
+
+**Burn:** 90% of recycled TAO during registration is burned (set on-chain).
 
 ## Anti-Gaming
 
