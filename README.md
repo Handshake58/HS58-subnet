@@ -326,7 +326,11 @@ HS58-subnet/
 
 ## DRAIN Protocol
 
+<<<<<<< HEAD
 **Contract:** `0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A` (Polygon Mainnet)
+=======
+**Contract:** `0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A` (Polygon Mainnet, DrainChannelV2)
+>>>>>>> ef4a25b (update DRAIN contract address to V2 (0x0C2B3aA1...))
 
 The validator scans `ChannelClaimed(bytes32,address,uint256)` events to measure real provider usage.
 
