@@ -326,7 +326,7 @@ HS58-subnet/
 
 ## DRAIN Protocol
 
-**Contract:** `0x1C1918C99b6DcE977392E4131C91654d8aB71e64` (Polygon Mainnet)
+**Contract:** `0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A` (Polygon Mainnet)
 
 The validator scans `ChannelClaimed(bytes32,address,uint256)` events to measure real provider usage.
 
