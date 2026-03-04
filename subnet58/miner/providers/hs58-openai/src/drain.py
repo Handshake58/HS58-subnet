@@ -2,7 +2,7 @@ import time
 from typing import Any, Optional
 
 from eth_account import Account
-from eth_account.messages import encode_structured_data
+from eth_account.messages import encode_typed_data
 from web3 import Web3
 from web3.contract import Contract
 from web3.exceptions import ContractLogicError
@@ -205,7 +205,7 @@ class DrainService:
                 amount,
                 nonce,
             )
-            signable = encode_structured_data(typed_data)
+            signable = encode_typed_data(typed_data)
             sig = voucher["signature"]
             if isinstance(sig, str):
                 sig = HexBytes(sig)
@@ -432,6 +432,6 @@ class DrainService:
             channel_id,
             final_amount,
         )
-        signable = encode_structured_data(typed_data)
+        signable = encode_typed_data(typed_data)
         signed = self.account.sign_message(signable)
         return {"finalAmount": final_amount, "signature": signed.signature.hex()}
