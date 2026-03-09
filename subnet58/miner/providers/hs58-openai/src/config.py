@@ -163,6 +163,7 @@ def load_config() -> ProviderConfig:
         "autoClaimBufferSeconds": int(
             _optional_env("AUTO_CLAIM_BUFFER_SECONDS", "3600")
         ),
+        "maxOutputTokens": int(_optional_env("MAX_OUTPUT_TOKENS", "1024")),
     }
 
 

@@ -77,8 +77,8 @@ Normalization: Relative to top provider **within the same category** (e.g., LLM 
 ### Create a new wallet
 
 ```bash
-# Install bittensor
-pip install bittensor
+# Install bittensor and cli
+pip install bittensor bittensor-cli
 
 # Create coldkey (stores your TAO)
 btcli wallet new_coldkey --wallet.name my-miner

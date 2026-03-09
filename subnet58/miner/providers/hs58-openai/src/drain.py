@@ -6,6 +6,7 @@ from eth_account.messages import encode_typed_data
 from web3 import Web3
 from web3.contract import Contract
 from web3.exceptions import ContractLogicError
+from web3.middleware import ExtraDataToPOAMiddleware
 from web3.types import HexBytes
 
 from .constants import (
@@ -103,6 +104,7 @@ class DrainService:
                 "Set POLYGON_RPC_URL for reliable claiming."
             )
         self.w3 = Web3(Web3.HTTPProvider(rpc_url or "https://polygon-rpc.com"))
+        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
         self.account = Account.from_key(config["providerPrivateKey"])
         self.contract_address = Web3.to_checksum_address(
             DRAIN_ADDRESSES[config["chainId"]]
@@ -205,7 +207,7 @@ class DrainService:
                 amount,
                 nonce,
             )
-            signable = encode_typed_data(typed_data)
+            signable = encode_typed_data(full_message=typed_data)
             sig = voucher["signature"]
             if isinstance(sig, str):
                 sig = HexBytes(sig)
@@ -432,6 +434,6 @@ class DrainService:
             channel_id,
             final_amount,
         )
-        signable = encode_typed_data(typed_data)
+        signable = encode_typed_data(full_message=typed_data)
         signed = self.account.sign_message(signable)
         return {"finalAmount": final_amount, "signature": signed.signature.hex()}

@@ -55,3 +55,4 @@ class ProviderConfig(TypedDict, total=False):
     providerName: str
     autoClaimIntervalMinutes: int
     autoClaimBufferSeconds: int
+    maxOutputTokens: Optional[int]

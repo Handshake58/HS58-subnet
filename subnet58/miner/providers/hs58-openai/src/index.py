@@ -143,12 +143,14 @@ async def _stream_chat(
     channel_state: dict,
 ) -> Any:
     """Generator for SSE stream."""
-    stream = await openai_client.chat.completions.create(
-        model=model,
-        messages=messages,
-        max_tokens=max_tokens,
-        stream=True,
-    )
+    create_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+    }
+    if max_tokens is not None:
+        create_kwargs["max_tokens"] = max_tokens
+    stream = await openai_client.chat.completions.create(**create_kwargs)
     input_tokens = 0
     output_tokens = 0
     full_content = ""
@@ -230,10 +232,19 @@ async def chat_completions(request: Request):
         )
     pricing = get_model_pricing(model)
     is_streaming = body.get("stream") is True
+    max_output_cap: Optional[int] = config.get("maxOutputTokens")
+    if max_output_cap is None:
+        effective_max_tokens = body.get("max_tokens")
+        estimate_output_tokens = 50
+    else:
+        effective_max_tokens = min(
+            body.get("max_tokens") or max_output_cap,
+            max_output_cap,
+        )
+        estimate_output_tokens = max_output_cap
     estimated_input_tokens = math.ceil(len(json.dumps(body.get("messages") or [])) / 4)
-    min_output_tokens = 50
     estimated_min_cost = calculate_cost(
-        pricing, estimated_input_tokens, min_output_tokens
+        pricing, estimated_input_tokens, estimate_output_tokens
     )
     validation = await drain_service.validate_voucher(voucher, estimated_min_cost)
     if not validation.get("valid"):
@@ -262,7 +273,7 @@ async def chat_completions(request: Request):
                 _stream_chat(
                     model,
                     body.get("messages") or [],
-                    body.get("max_tokens"),
+                    effective_max_tokens,
                     pricing,
                     voucher,
                     channel_state,
@@ -275,11 +286,13 @@ async def chat_completions(request: Request):
                     "X-DRAIN-Channel": voucher["channelId"],
                 },
             )
-        completion = await openai_client.chat.completions.create(
-            model=model,
-            messages=body.get("messages") or [],
-            max_tokens=body.get("max_tokens"),
-        )
+        create_kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": body.get("messages") or [],
+        }
+        if effective_max_tokens is not None:
+            create_kwargs["max_tokens"] = effective_max_tokens
+        completion = await openai_client.chat.completions.create(**create_kwargs)
         input_tokens = getattr(
             completion.usage, "prompt_tokens", None
         ) or 0
