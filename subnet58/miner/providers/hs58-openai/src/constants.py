@@ -125,6 +125,6 @@ def get_payment_headers(provider_address: str, chain_id: int) -> dict[str, str]:
         "X-Payment-Provider": provider_address,
         "X-Payment-Contract": DRAIN_ADDRESSES[chain_id],
         "X-Payment-Chain": str(chain_id),
-        "X-Payment-Signing": "https://handshake58.com/api/drain/signing",
+        "X-Payment-Signing": "https://www.handshake58.com/api/drain/signing",
         "X-Payment-Docs": "/v1/docs",
     }

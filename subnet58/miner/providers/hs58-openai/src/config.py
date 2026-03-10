@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from .types import ModelPricing, ProviderConfig
 
+# Run this from the root of the repo to load environment variables from .env file
 load_dotenv()
 
 # In-memory model pricing (keyed by model id)
@@ -22,6 +23,13 @@ def _require_env(name: str) -> str:
 
 def _optional_env(name: str, default: str) -> str:
     return os.environ.get(name, default)
+
+
+def _parse_max_output_tokens(value: str) -> Optional[int]:
+    """Parse MAX_OUTPUT_TOKENS: empty, 'none', or '0' → None (no cap); else int."""
+    if not value or value.strip().lower() in ("none", "0"):
+        return None
+    return int(value.strip())
 
 
 def _fetch_api_models(api_key: str) -> list[str]:
@@ -154,7 +162,7 @@ def load_config() -> ProviderConfig:
         "storagePath": _optional_env("STORAGE_PATH", "./data/vouchers.json"),
         "markup": markup,
         "marketplaceUrl": _optional_env(
-            "MARKETPLACE_URL", "https://handshake58.com"
+            "MARKETPLACE_URL", "https://www.handshake58.com"
         ),
         "providerName": _optional_env("PROVIDER_NAME", "HS58-OpenAI"),
         "autoClaimIntervalMinutes": int(
@@ -163,7 +171,9 @@ def load_config() -> ProviderConfig:
         "autoClaimBufferSeconds": int(
             _optional_env("AUTO_CLAIM_BUFFER_SECONDS", "3600")
         ),
-        "maxOutputTokens": int(_optional_env("MAX_OUTPUT_TOKENS", "1024")),
+        "maxOutputTokens": _parse_max_output_tokens(
+            _optional_env("MAX_OUTPUT_TOKENS", "")
+        ),
     }
 
 
