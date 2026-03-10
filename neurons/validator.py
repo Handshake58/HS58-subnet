@@ -10,6 +10,7 @@
 import time
 import numpy as np
 import bittensor as bt
+import requests
 
 from eth_account.messages import encode_defunct
 from eth_account import Account
@@ -46,8 +47,10 @@ class Validator(BaseValidatorNeuron):
         Validator forward pass:
         1. Query all miners
         2. Scan DRAIN events
-        3. Score each miner
-        4. Update scores
+        3. Fetch provider categories from marketplace
+        4. Score each miner (per-category normalization)
+        5. Apply Winner Takes All (only top scorer per category keeps weight)
+        6. Update scores
         """
         bt.logging.info("Starting validation round...")
 
@@ -65,36 +68,98 @@ class Validator(BaseValidatorNeuron):
         # 2. Scan DRAIN events (7-day window)
         bt.logging.info("Scanning DRAIN ChannelClaimed events...")
         self.drain_scanner.update_claims()
-        max_claims = self.drain_scanner.get_max_claims() or 1  # Avoid division by zero
+
+        # 3. Fetch provider categories from marketplace
+        wallet_categories = self._fetch_provider_categories()
+        category_max = self.drain_scanner.get_max_claims_by_category(wallet_categories)
 
         bt.logging.info(
-            f"Max claims in window: ${max_claims:.2f} USDC "
-            f"({len(self.drain_scanner.claims_cache)} providers with claims)"
+            f"Categories: {len(category_max)} with claims, "
+            f"wallets mapped: {len(wallet_categories)}"
         )
+        for cat, mx in sorted(category_max.items(), key=lambda x: -x[1]):
+            bt.logging.info(f"  {cat}: max=${mx:.2f}")
 
-        # 3. Score each miner
+        # 4. Score each miner (per-category max)
         rewards = np.zeros(len(miner_uids), dtype=np.float32)
+        miner_wallets = {}
+        miner_categories = {}
 
         for i, (uid, response) in enumerate(zip(miner_uids, responses)):
             hotkey = self.metagraph.hotkeys[uid]
-            score = self._score_miner(response, hotkey, max_claims)
+            wallet = self._get_field(response, "polygon_wallet")
+
+            if wallet:
+                wallet_lower = wallet.lower()
+                miner_wallets[i] = wallet_lower
+                cat = wallet_categories.get(wallet_lower, "llm")
+                miner_categories[i] = cat
+                cat_max = category_max.get(cat, 0) or 1
+                score = self._score_miner(response, hotkey, cat_max)
+            else:
+                score = self._score_miner(response, hotkey, 1)
+
             rewards[i] = score
 
-            if score > 0:
-                wallet = self._get_field(response, "polygon_wallet") or "?"
-                claims = self.drain_scanner.get_claims(wallet) if wallet != "?" else 0
-                bt.logging.info(
-                    f"  UID {uid}: score={score:.4f} "
-                    f"(wallet={wallet[:10]}..., claims=${claims:.2f})"
-                )
+        # 5. Winner Takes All — only top scorer per category keeps weight
+        category_top: dict = {}
+        for i, uid in enumerate(miner_uids):
+            if rewards[i] <= 0:
+                continue
+            cat = miner_categories.get(i, "llm")
+            if cat not in category_top or rewards[i] > rewards[category_top[cat]]:
+                category_top[cat] = i
 
-        # 4. Update scores with exponential moving average
-        scored_count = np.count_nonzero(rewards)
+        wta_rewards = np.zeros_like(rewards)
+        for cat, top_idx in category_top.items():
+            wta_rewards[top_idx] = rewards[top_idx]
+            uid = miner_uids[top_idx]
+            wallet = miner_wallets.get(top_idx, "?")
+            claims = self.drain_scanner.get_claims(wallet) if wallet != "?" else 0
+            bt.logging.info(
+                f"  WTA winner [{cat}] UID {uid}: score={rewards[top_idx]:.4f} "
+                f"(wallet={wallet[:10]}..., claims=${claims:.2f})"
+            )
+
+        # 6. Update scores with exponential moving average
+        scored_count = np.count_nonzero(wta_rewards)
         bt.logging.info(
-            f"Validation round complete: {scored_count}/{len(miner_uids)} miners scored"
+            f"Validation round complete: {scored_count} WTA winners "
+            f"from {len(category_top)} categories, {len(miner_uids)} total miners"
         )
 
-        self.update_scores(rewards, miner_uids)
+        self.update_scores(wta_rewards, miner_uids)
+
+    def _fetch_provider_categories(self) -> dict:
+        """
+        Fetch provider wallet -> category mapping from marketplace API.
+        Falls back to empty dict (all miners default to "llm") if unreachable.
+        """
+        try:
+            resp = requests.get(
+                f"{MARKETPLACE_URL}/api/mcp/providers?limit=200",
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+            categories = {}
+            for p in data.get("providers", []):
+                addr = p.get("providerAddress", "").lower()
+                if addr:
+                    categories[addr] = p.get("category", "llm")
+
+            bt.logging.info(
+                f"[Categories] Fetched {len(categories)} provider categories "
+                f"from marketplace"
+            )
+            return categories
+        except Exception as e:
+            bt.logging.warning(
+                f"[Categories] Failed to fetch from marketplace: {e} "
+                f"(all miners default to 'llm')"
+            )
+            return {}
 
     @staticmethod
     def _get_field(response, field: str, default=None):
@@ -111,25 +176,21 @@ class Validator(BaseValidatorNeuron):
         """
         Score a single miner based on:
         - Availability (40%): Did they respond with a valid wallet proof?
-        - DRAIN Claims (60%): How much USDC was claimed through their wallet?
+        - DRAIN Claims (60%): Relative to top provider in same category
         """
-        # No response or missing wallet = offline
         polygon_wallet = self._get_field(response, "polygon_wallet")
         if response is None or not polygon_wallet:
             return 0.0
 
-        # Verify wallet ownership (ECDSA signature)
         if not self._verify_ownership(response, hotkey):
             bt.logging.trace(f"Wallet ownership verification failed for {hotkey}")
             return 0.0
 
-        # Base score: availability (40%)
         score = WEIGHT_AVAILABILITY
 
-        # DRAIN Claims score (60%)
         claims = self.drain_scanner.get_claims(polygon_wallet)
         if claims > 0 and max_claims > 0:
-            claim_score = claims / max_claims  # 0.0 - 1.0 (relative to top provider)
+            claim_score = claims / max_claims
             score += WEIGHT_CLAIMS * claim_score
 
         return score
