@@ -50,10 +50,10 @@ class BaseNeuron(ABC):
         self.device = self.config.neuron.device
         bt.logging.info(self.config)
 
-        # Build Bittensor objects
+        # Build Bittensor objects (with retry for transient network issues)
         bt.logging.info("Setting up bittensor objects.")
         self.wallet = bt.Wallet(config=self.config)
-        self.subtensor = bt.Subtensor(config=self.config)
+        self.subtensor = self._connect_subtensor()
         self.metagraph = self.subtensor.metagraph(self.config.netuid)
 
         bt.logging.info(f"Wallet: {self.wallet}")
@@ -71,6 +71,26 @@ class BaseNeuron(ABC):
             f"using network: {self.subtensor.chain_endpoint}"
         )
         self.step = 0
+
+    def _connect_subtensor(self, max_retries: int = 5) -> "bt.Subtensor":
+        """Connect to Subtensor with exponential backoff retry."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                subtensor = bt.Subtensor(config=self.config)
+                bt.logging.info(f"Subtensor connected on attempt {attempt}.")
+                return subtensor
+            except Exception as e:
+                if attempt == max_retries:
+                    bt.logging.error(
+                        f"Failed to connect to Subtensor after {max_retries} attempts: {e}"
+                    )
+                    raise
+                wait = min(2 ** attempt, 60)
+                bt.logging.warning(
+                    f"Subtensor connection failed (attempt {attempt}/{max_retries}): {e} "
+                    f"— retrying in {wait}s..."
+                )
+                time.sleep(wait)
 
     @abstractmethod
     async def forward(self, synapse: bt.Synapse) -> bt.Synapse:

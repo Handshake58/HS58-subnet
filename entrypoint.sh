@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # ============================================================================
 # Handshake58 Subnet 58 - Neuron Entrypoint
@@ -56,53 +55,70 @@ fi
 
 echo "[entrypoint] Wallet setup complete."
 
-# Start the appropriate neuron
-if [ "$NEURON_TYPE" = "miner" ]; then
-    # Validate miner-specific env vars
-    if [ -z "$POLYGON_WALLET" ] || [ -z "$POLYGON_PRIVATE_KEY" ] || [ -z "$API_URL" ]; then
-        echo "[entrypoint] ================================================"
-        echo "[entrypoint] Miner requires additional env vars:"
-        echo "[entrypoint]   POLYGON_WALLET       - Polygon wallet address"
-        echo "[entrypoint]   POLYGON_PRIVATE_KEY   - Polygon private key (for ownership proof)"
-        echo "[entrypoint]   API_URL              - Provider API endpoint URL"
-        echo "[entrypoint] Optional:"
-        echo "[entrypoint]   MARKETPLACE_URL      - Marketplace URL (default: https://www.handshake58.com)"
-        echo "[entrypoint] ================================================"
-        echo "[entrypoint] Waiting for configuration... (sleeping)"
-        while true; do sleep 3600; done
-    fi
+# Auto-restart loop: restarts the neuron on crash with backoff (max 120s)
+MAX_RESTART_DELAY=120
+restart_delay=5
 
-    AXON_PORT="${AXON_PORT:-8091}"
-    echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL}, port=${AXON_PORT})..."
-
-    MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT --logging.debug"
-
-    # If external host is set, resolve domain to IP (Bittensor only accepts IP addresses)
-    if [ -n "$AXON_EXTERNAL_IP" ]; then
-        # Check if it's already an IP or a hostname that needs resolving
-        if echo "$AXON_EXTERNAL_IP" | grep -qP '^\d+\.\d+\.\d+\.\d+$'; then
-            RESOLVED_IP="$AXON_EXTERNAL_IP"
-        else
-            echo "[entrypoint] Resolving ${AXON_EXTERNAL_IP} to IP..."
-            RESOLVED_IP=$(python3 -c "import socket; print(socket.getaddrinfo('${AXON_EXTERNAL_IP}', None, socket.AF_INET)[0][4][0])")
-            echo "[entrypoint] Resolved to ${RESOLVED_IP}"
+run_neuron() {
+    if [ "$NEURON_TYPE" = "miner" ]; then
+        # Validate miner-specific env vars
+        if [ -z "$POLYGON_WALLET" ] || [ -z "$POLYGON_PRIVATE_KEY" ] || [ -z "$API_URL" ]; then
+            echo "[entrypoint] ================================================"
+            echo "[entrypoint] Miner requires additional env vars:"
+            echo "[entrypoint]   POLYGON_WALLET       - Polygon wallet address"
+            echo "[entrypoint]   POLYGON_PRIVATE_KEY   - Polygon private key (for ownership proof)"
+            echo "[entrypoint]   API_URL              - Provider API endpoint URL"
+            echo "[entrypoint] Optional:"
+            echo "[entrypoint]   MARKETPLACE_URL      - Marketplace URL (default: https://www.handshake58.com)"
+            echo "[entrypoint] ================================================"
+            echo "[entrypoint] Waiting for configuration... (sleeping)"
+            while true; do sleep 3600; done
         fi
-        MINER_ARGS="$MINER_ARGS --axon.external_ip $RESOLVED_IP"
-    fi
-    if [ -n "$AXON_EXTERNAL_PORT" ]; then
-        MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_EXTERNAL_PORT"
-    else
-        MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_PORT"
-    fi
 
-    exec python neurons/miner.py $MINER_ARGS "$@"
-else
-    echo "[entrypoint] Starting VALIDATOR (axon disabled - validators don't need incoming connections)..."
-    exec python neurons/validator.py \
-        --netuid 58 \
-        --wallet.name "$WALLET_NAME" \
-        --wallet.hotkey "$HOTKEY_NAME" \
-        --neuron.axon_off \
-        --logging.debug \
-        "$@"
-fi
+        AXON_PORT="${AXON_PORT:-8091}"
+        echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL}, port=${AXON_PORT})..."
+
+        MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT --logging.debug"
+
+        # If external host is set, resolve domain to IP (Bittensor only accepts IP addresses)
+        if [ -n "$AXON_EXTERNAL_IP" ]; then
+            if echo "$AXON_EXTERNAL_IP" | grep -qP '^\d+\.\d+\.\d+\.\d+$'; then
+                RESOLVED_IP="$AXON_EXTERNAL_IP"
+            else
+                echo "[entrypoint] Resolving ${AXON_EXTERNAL_IP} to IP..."
+                RESOLVED_IP=$(python3 -c "import socket; print(socket.getaddrinfo('${AXON_EXTERNAL_IP}', None, socket.AF_INET)[0][4][0])")
+                echo "[entrypoint] Resolved to ${RESOLVED_IP}"
+            fi
+            MINER_ARGS="$MINER_ARGS --axon.external_ip $RESOLVED_IP"
+        fi
+        if [ -n "$AXON_EXTERNAL_PORT" ]; then
+            MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_EXTERNAL_PORT"
+        else
+            MINER_ARGS="$MINER_ARGS --axon.external_port $AXON_PORT"
+        fi
+
+        python neurons/miner.py $MINER_ARGS "$@"
+    else
+        echo "[entrypoint] Starting VALIDATOR (axon disabled - validators don't need incoming connections)..."
+        python neurons/validator.py \
+            --netuid 58 \
+            --wallet.name "$WALLET_NAME" \
+            --wallet.hotkey "$HOTKEY_NAME" \
+            --neuron.axon_off \
+            --logging.debug \
+            "$@"
+    fi
+}
+
+# Restart loop with exponential backoff
+while true; do
+    run_neuron "$@"
+    exit_code=$?
+    echo "[entrypoint] Neuron exited with code ${exit_code}. Restarting in ${restart_delay}s..."
+    sleep $restart_delay
+    # Exponential backoff, capped at MAX_RESTART_DELAY
+    restart_delay=$((restart_delay * 2))
+    if [ $restart_delay -gt $MAX_RESTART_DELAY ]; then
+        restart_delay=$MAX_RESTART_DELAY
+    fi
+done
