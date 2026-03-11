@@ -1,16 +1,16 @@
 # Example OpenAI Provider Implementation
 
-You can also use the [HS58 repo](https://github.com/Handshake58/HS58), which has template TypeScript implementations of many different Providers. 
+To run a Provider you can also use the [HS58 repo](https://github.com/Handshake58/HS58), which has template TypeScript implementations of many different Providers. 
 The Python implementation here can serve as a foundation to write your own Provider in Python.
 
 ## Prerequisites
 - Polygon wallet funded with POL for gas fees ([See Wallet Setup](https://github.com/Handshake58/HS58#wallet-setup))
 - Dedicated RPC endpoint, recommended to reduce rate-limiting. See ([Polygon RPC Setup](https://github.com/Handshake58/HS58/blob/main/providers/README.md#polygon-rpc))
 - OpenAI API key
-- https compatible endpoint
+- https compatible endpoint, required to get verified on the HS58 Marketplace
 
 ## Configure .env
-Set the following in your `.env` in the repository root (copy from `.env.example` in repo root).
+Set the following in your `.env` in the repository root (copy from `.env.example`).
 ```bash
 POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
 # --- Miner ---
@@ -39,11 +39,13 @@ AUTO_CLAIM_BUFFER_SECONDS=3600
 # Cap on max_tokens per chat completion
 MAX_OUTPUT_TOKENS=None
 ```
-Setting MAX_OUTPUT_TOKENS will cap the number of tokens your Provider outputs. 
+- **API_URL**: HTTPS URL where your provider is reachable (e.g. your deployed endpoint).
+- **MAX_OUTPUT_TOKENS**: Cap on output tokens per completion; omit or set to `None` for no cap. 
+- The POLYGON_RPC_URL, POLYGON_WALLET, and POLYGON_PRIVATE_KEY, can be obtained by following the READMEs linked in the Prerequisites.
 
 ## Install dependencies
 
-From the repository root (or ensure you have a venv), then from this directory:
+Create a venv for the Provider and use the .toml file in this directory to install:
 
 ```bash
 cd subnet58/miner/providers/hs58-openai
@@ -61,4 +63,5 @@ cd /path/to/HS58-subnet
 hs58-openai
 ```
 
-Once the provider is running, follow the [miner tutorial](../../../../README.md#step-2-register-on-subnet-58) in the main README.
+Once the provider is running, follow the [miner tutorial](../../../../README.md#step-2-register-on-subnet-58) in the main README. 
+Note that if you are running the miner and Provider on the same machine, by default they use different venvs and different ports.

@@ -105,7 +105,8 @@ You can buy TAO on exchanges like [MEXC](https://www.mexc.com/), [Gate.io](https
 
 ### Step 1: Deploy a provider
 
-First, you need an AI provider running. Pick a template from the [HS58 repo](https://github.com/Handshake58/HS58):
+First, you need an AI provider running. There are two options for this.
+1) Pick a template from the [HS58 repo](https://github.com/Handshake58/HS58) and deploy on Railway:
 
 ```bash
 git clone https://github.com/Handshake58/HS58.git
@@ -113,6 +114,8 @@ cd HS58/providers/hs58-openai  # or any template
 npm install && cp env.example .env
 # Edit .env, then deploy on Railway (see HS58 README)
 ```
+
+2) Run your own Provider, there is an example Python implementation of an OpenAI Provider in `subnet58/miner/providers/hs58-openai`. Follow the [README](subnet58/miner/providers/hs58-openai/README.md) and adapt the code if you want to provide a different service from OpenAI.
 
 ### Step 2: Register on Subnet 58
 
