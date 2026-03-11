@@ -16,11 +16,9 @@ DRAIN_CHANNEL_ADDRESS = "0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A"
 USDC_DECIMALS = 6
 
 # ---------------------------------------------------------------------------
-# Scoring Weights
+# DRAIN Scanning
 # ---------------------------------------------------------------------------
 CLAIMS_WINDOW_DAYS = 7
-WEIGHT_CLAIMS = 0.6
-WEIGHT_AVAILABILITY = 0.4
 
 # ---------------------------------------------------------------------------
 # Polygon RPC (ordered by priority)
