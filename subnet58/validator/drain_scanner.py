@@ -129,6 +129,7 @@ class DrainScanner:
             return 0
         return max(self.claims_cache.values(), default=0)
 
+
     def get_max_claims_by_category(self, wallet_categories: dict) -> dict:
         """
         Get maximum claimed amount per category.
@@ -141,7 +142,9 @@ class DrainScanner:
         """
         category_max: dict = {}
         for wallet, amount in self.claims_cache.items():
-            cat = wallet_categories.get(wallet, "llm")
+            cat = wallet_categories.get(wallet)
+            if cat is None:
+                continue  # skip non-miner wallets entirely
             if amount > category_max.get(cat, 0):
                 category_max[cat] = amount
         return category_max

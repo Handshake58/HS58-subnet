@@ -38,9 +38,10 @@ LOG_QUERY_CHUNK_SIZE = int(os.getenv("LOG_CHUNK_SIZE", "2000"))
 BLOCKS_PER_DAY = 43200
 
 # ---------------------------------------------------------------------------
-# Subnet Hyperparameters (set on-chain via btcli, documented here)
+# Validator Weight Distribution
 # ---------------------------------------------------------------------------
-BURN_RATE = 0.9  # 90% of recycled TAO is burned
+BURN_UID = 15           # UID that receives the burn fraction of validator weights
+BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split equally across WTA winners
 
 # ---------------------------------------------------------------------------
 # Miner Config (from environment)
