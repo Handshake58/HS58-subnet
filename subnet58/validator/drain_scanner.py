@@ -3,6 +3,9 @@
 # Scans ChannelClaimed events from the DrainChannel contract on Polygon.
 # Returns total claimed amounts per provider address over a rolling window.
 
+import math
+from collections import defaultdict
+
 import bittensor as bt
 from web3 import Web3
 
@@ -56,7 +59,11 @@ class DrainScanner:
     def update_claims(self) -> dict:
         """
         Scan ChannelClaimed events from last N days.
-        Returns dict of provider_address -> total_claimed_usd.
+
+        Anti-gaming: uses sqrt-per-channel scoring so that many small channels
+        from diverse consumers score higher than one large self-dealing channel.
+
+        Returns dict of provider_address -> diversity-weighted score (float).
         """
         from_block = self._get_block_n_days_ago(CLAIMS_WINDOW_DAYS)
         to_block = self.w3.eth.block_number
@@ -66,7 +73,8 @@ class DrainScanner:
             f"({CLAIMS_WINDOW_DAYS}d window, ~{to_block - from_block} blocks)"
         )
 
-        claims: dict = {}
+        # Phase 1: Aggregate raw amounts per (provider, channelId)
+        channel_amounts: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         chunk_start = from_block
         total_events = 0
 
@@ -82,14 +90,12 @@ class DrainScanner:
                 })
 
                 for log in logs:
-                    # topics[2] = provider address (indexed)
+                    channel_id = log["topics"][1].hex()
                     provider = "0x" + log["topics"][2].hex()[-40:]
                     provider = provider.lower()
-
-                    # data = amount (uint256)
                     amount = int(log["data"].hex(), 16) / (10 ** USDC_DECIMALS)
 
-                    claims[provider] = claims.get(provider, 0) + amount
+                    channel_amounts[provider][channel_id] += amount
                     total_events += 1
 
             except Exception as e:
@@ -99,9 +105,15 @@ class DrainScanner:
 
             chunk_start = chunk_end + 1
 
+        # Phase 2: sqrt per channel, then sum — rewards consumer diversity
+        claims: dict = {}
+        for provider, channels in channel_amounts.items():
+            claims[provider] = sum(math.sqrt(amt) for amt in channels.values())
+
         bt.logging.info(
             f"[DRAIN] Scan complete: {total_events} events, "
-            f"{len(claims)} unique providers"
+            f"{len(claims)} unique providers, "
+            f"{sum(len(ch) for ch in channel_amounts.values())} unique channels"
         )
 
         self.claims_cache = claims
