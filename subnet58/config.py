@@ -18,15 +18,14 @@ USDC_DECIMALS = 6
 # ---------------------------------------------------------------------------
 # DRAIN Scanning
 # ---------------------------------------------------------------------------
-CLAIMS_WINDOW_DAYS = 7
+CLAIMS_WINDOW_DAYS = 3
 
 # ---------------------------------------------------------------------------
 # Polygon RPC (ordered by priority)
 # ---------------------------------------------------------------------------
 POLYGON_RPC_ENDPOINTS = [
     os.getenv("POLYGON_RPC_URL"),           # Alchemy (recommended)
-    "https://polygon-rpc.com",               # Fallback 1
-    "https://rpc.ankr.com/polygon",          # Fallback 2
+    "https://rpc.ankr.com/polygon",          # Fallback
 ]
 
 # Blocks per get_logs call (Alchemy ~2000, public ~1000)

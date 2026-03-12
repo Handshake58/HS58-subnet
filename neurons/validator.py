@@ -64,7 +64,7 @@ class Validator(BaseValidatorNeuron):
             timeout=self.config.neuron.timeout,
         )
 
-        # 2. Scan DRAIN events (7-day window)
+        # 2. Scan DRAIN events (3-day window)
         bt.logging.info("Scanning DRAIN ChannelClaimed events...")
         self.drain_scanner.update_claims()
 

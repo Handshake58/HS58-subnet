@@ -263,8 +263,8 @@ POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
 
 The validator will:
 - Query all miners for wallet proofs (availability check)
-- Scan DRAIN `ChannelClaimed` events on Polygon (7-day window)
-- Score miners: 60% claims + 40% availability
+- Scan DRAIN `ChannelClaimed` events on Polygon (3-day window)
+- Score miners, winner takes all per category
 - Set weights on Bittensor
 
 ---
