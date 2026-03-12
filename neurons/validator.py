@@ -164,15 +164,17 @@ class Validator(BaseValidatorNeuron):
         """
         try:
             resp = requests.get(
-                f"{MARKETPLACE_URL}/api/mcp/providers?limit=200",
+                f"{MARKETPLACE_URL}/api/validator/registry",
                 timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
 
             categories = {}
-            for p in data.get("providers", []):
-                addr = p.get("providerAddress", "").lower()
+            for p in data.get("miners", []):
+                if p.get("tier", "") != "bittensor":
+                    continue
+                addr = p.get("wallet", "").lower()
                 if addr and addr in miner_wallet_set:
                     categories[addr] = p.get("category", "llm")
 
