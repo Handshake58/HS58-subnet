@@ -4,6 +4,8 @@
 # 1. Signs a wallet ownership proof at startup (ECDSA with Polygon key)
 # 2. Auto-registers on the Handshake58 marketplace (idempotent)
 # 3. Responds to ProviderCheck Synapses with wallet + proof + API URL
+from dotenv import load_dotenv
+load_dotenv()
 
 import time
 import typing
