@@ -236,6 +236,8 @@ btcli stake add --wallet.name my-validator --wallet.hotkey default --amount 100
 cp .env.example .env
 ```
 
+NOTE validators will require a paid Alchemy plan to make the necessary RPC calls. Select the Pay As You Go $5 per month plan.
+
 Edit `.env`:
 ```bash
 # Alchemy Polygon RPC (recommended for reliable log queries)

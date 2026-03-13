@@ -34,7 +34,7 @@ def add_args(cls, parser):
         "--neuron.epoch_length",
         type=int,
         help="Epoch length in blocks (12s each).",
-        default=100,
+        default=360,
     )
 
 

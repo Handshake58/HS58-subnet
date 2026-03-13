@@ -101,13 +101,9 @@ class BaseNeuron(ABC):
         ...
 
     def sync(self):
-        """Synchronize network state."""
+        """Check registration and resync metagraph."""
         self.check_registered()
-        if self.should_sync_metagraph():
-            self.resync_metagraph()
-        if self.should_set_weights():
-            self.set_weights()
-        self.save_state()
+        self.resync_metagraph()
 
     def check_registered(self):
         while not self.subtensor.is_hotkey_registered(
@@ -119,28 +115,15 @@ class BaseNeuron(ABC):
                 f"Waiting for registration... (retrying in 60s)"
             )
             time.sleep(60)
-            # Refresh metagraph to pick up new registration
             try:
                 self.metagraph = self.subtensor.metagraph(self.config.netuid)
             except Exception as e:
                 bt.logging.warning(f"Failed to refresh metagraph: {e}")
         bt.logging.info(f"Hotkey {self.wallet.hotkey.ss58_address} is registered on netuid {self.config.netuid}.")
 
-    def should_sync_metagraph(self):
-        return (
-            self.block - self.metagraph.last_update[self.uid]
-        ) > self.config.neuron.epoch_length
-
-    def should_set_weights(self) -> bool:
-        if self.step == 0:
-            return False
-        if self.config.neuron.disable_set_weights:
-            return False
-        return (
-            (self.block - self.metagraph.last_update[self.uid])
-            > self.config.neuron.epoch_length
-            and self.neuron_type != "MinerNeuron"
-        )
+    def resync_metagraph(self):
+        """Default no-op; overridden by validator/miner base classes."""
+        pass
 
     def save_state(self):
         pass

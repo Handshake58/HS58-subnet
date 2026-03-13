@@ -35,6 +35,12 @@ LOG_QUERY_CHUNK_SIZE = int(os.getenv("LOG_CHUNK_SIZE", "2000"))
 BLOCKS_PER_DAY = 43200
 
 # ---------------------------------------------------------------------------
+# Bittensor Tempo
+# ---------------------------------------------------------------------------
+TEMPO = 360             # 360 blocks per epoch
+POLL_INTERVAL = 12      # Seconds between block checks in the validator poll loop
+
+# ---------------------------------------------------------------------------
 # Validator Weight Distribution
 # ---------------------------------------------------------------------------
 BURN_UID = 15           # UID that receives the burn fraction of validator weights
