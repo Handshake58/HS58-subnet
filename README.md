@@ -40,14 +40,9 @@ Validator → scans ChannelClaimed events → scores Provider
 Validator → sets weights on Bittensor → Provider earns TAO
 ```
 
-## Scoring (2 Metrics)
+## Scoring
 
-| Metric | Weight | Source | Window |
-|---|---|---|---|
-| **DRAIN Claims** | 60% | ChannelClaimed events on Polygon | 7 days rolling |
-| **Availability** | 40% | Synapse response with wallet proof | Current |
-
-Normalization: Relative to top provider **within the same category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round.
+The scoring is winner takes all **within the same category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round. The score per category is the sum of the square roots of individual channel claims. 
 
 **Burn:** 90% of recycled TAO during registration is burned (set on-chain).
 
@@ -259,15 +254,42 @@ WALLET_NAME=my-validator
 HOTKEY_NAME=default
 NEURON_TYPE=validator
 POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
+AUTOUPDATE_ENABLED=false
 ```
 
 3. Base64-encode wallet files the same way as for the miner (see above)
+
+> **Note:** `AUTOUPDATE_ENABLED` must be set to `false` on Railway. Railway automatically rebuilds and redeploys your container when you push to the linked branch, so the built-in auto-update mechanism is not needed. Leaving it enabled would cause the validator to restart itself redundantly before Railway redeploys.
 
 The validator will:
 - Query all miners for wallet proofs (availability check)
 - Scan DRAIN `ChannelClaimed` events on Polygon (3-day window)
 - Score miners, winner takes all per category
 - Set weights on Bittensor
+
+### Step 5: Deploy with Docker (self-hosted)
+
+If you're running on your own server instead of Railway, the built-in auto-update is enabled by default. The validator will check for new commits on `main` after each validation round, pull the latest code, and restart automatically.
+
+```bash
+docker build -t hs58-validator .
+
+docker run -d --restart unless-stopped \
+  -e BT_HOTKEY_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/hotkeys/default)" \
+  -e BT_COLDKEYPUB_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/coldkeypub)" \
+  -e NEURON_TYPE=validator \
+  -e WALLET_NAME=my-validator \
+  -e HOTKEY_NAME=default \
+  -e POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY \
+  hs58-validator
+```
+
+Auto-update is controlled by these optional env vars:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTOUPDATE_ENABLED` | `true` | Set to `false` to disable |
+| `AUTOUPDATE_BRANCH` | `main` | Remote branch to track |
 
 ---
 

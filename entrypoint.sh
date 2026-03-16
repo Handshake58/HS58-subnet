@@ -117,11 +117,29 @@ while true; do
 
     if [ $exit_code -eq 42 ]; then
         echo "[entrypoint] Auto-update triggered (exit code 42)."
-        echo "[entrypoint] Pulling latest code..."
         cd /app
-        git pull origin "${AUTOUPDATE_BRANCH:-main}" --ff-only
-        echo "[entrypoint] Reinstalling package..."
-        pip install --no-cache-dir -e .
+        BRANCH="${AUTOUPDATE_BRANCH:-main}"
+
+        echo "[entrypoint] Fetching origin/${BRANCH}..."
+        if ! git fetch origin "$BRANCH"; then
+            echo "[entrypoint] ERROR: git fetch failed. Restarting with current code in ${restart_delay}s."
+            sleep $restart_delay
+            continue
+        fi
+
+        echo "[entrypoint] Resetting to origin/${BRANCH}..."
+        if ! git reset --hard "origin/${BRANCH}"; then
+            echo "[entrypoint] ERROR: git reset failed. Restarting with current code in ${restart_delay}s."
+            sleep $restart_delay
+            continue
+        fi
+
+        echo "[entrypoint] Reinstalling dependencies and package..."
+        pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir -e .
+        if [ $? -ne 0 ]; then
+            echo "[entrypoint] WARNING: pip install failed. Restarting with updated code anyway."
+        fi
+
         echo "[entrypoint] Update complete. Restarting immediately."
         restart_delay=5
         continue
