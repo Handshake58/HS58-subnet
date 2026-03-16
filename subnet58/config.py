@@ -43,7 +43,7 @@ POLL_INTERVAL = 12      # Seconds between block checks in the validator poll loo
 # ---------------------------------------------------------------------------
 # Validator Weight Distribution
 # ---------------------------------------------------------------------------
-BURN_UID = 15           # UID that receives the burn fraction of validator weights
+BURN_UID = 155           # UID that receives the burn fraction of validator weights
 BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split equally across WTA winners
 
 # ---------------------------------------------------------------------------
