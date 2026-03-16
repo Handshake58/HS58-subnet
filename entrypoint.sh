@@ -58,6 +58,18 @@ echo "[entrypoint] Wallet setup complete."
 # Auto-restart loop: restarts the neuron on crash with backoff (max 120s)
 MAX_RESTART_DELAY=120
 restart_delay=5
+child_pid=""
+
+# Forward SIGTERM/SIGINT to the child process so `docker stop` shuts down cleanly
+cleanup() {
+    echo "[entrypoint] Caught signal — stopping neuron (pid=${child_pid})..."
+    if [ -n "$child_pid" ]; then
+        kill "$child_pid" 2>/dev/null
+        wait "$child_pid" 2>/dev/null
+    fi
+    exit 0
+}
+trap cleanup SIGTERM SIGINT
 
 run_neuron() {
     if [ "$NEURON_TYPE" = "miner" ]; then
@@ -112,8 +124,11 @@ run_neuron() {
 
 # Restart loop with exponential backoff
 while true; do
-    run_neuron "$@"
+    run_neuron "$@" &
+    child_pid=$!
+    wait $child_pid
     exit_code=$?
+    child_pid=""
 
     if [ $exit_code -eq 42 ]; then
         echo "[entrypoint] Auto-update triggered (exit code 42)."
