@@ -253,8 +253,8 @@ LOG_CHUNK_SIZE=2000
 
 ```bash
 BT_HOTKEY_B64=...
-BT_COLDKEY_B64=...
 BT_COLDKEYPUB_B64=...
+# BT_COLDKEY_B64=...   # optional; validator only needs hotkey + coldkeypub for set_weights
 WALLET_NAME=my-validator
 HOTKEY_NAME=default
 NEURON_TYPE=validator
@@ -286,7 +286,7 @@ The validator will:
 
 | Error | Solution |
 |-------|----------|
-| "Wallet keys not configured" | Set `BT_HOTKEY_B64`, `BT_COLDKEY_B64`, `BT_COLDKEYPUB_B64` in Railway Variables |
+| "Wallet keys not configured" | Set `BT_HOTKEY_B64` and `BT_COLDKEYPUB_B64` (optional: `BT_COLDKEY_B64` for staking/transfer; set_weights uses hotkey only) |
 | "SubstrateRequestException" | Bittensor network issue — service will retry automatically |
 | Axon serve failure | Ensure `AXON_EXTERNAL_PORT=443` is set (Railway uses HTTPS) |
 | Miner not found by validator | Check that `API_URL` in miner env points to a running provider |

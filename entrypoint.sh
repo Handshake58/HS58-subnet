@@ -27,9 +27,9 @@ if [ -z "$BT_HOTKEY_B64" ] || [ -z "$BT_COLDKEYPUB_B64" ]; then
     echo "[entrypoint] ================================================"
     echo "[entrypoint] Wallet keys not configured yet."
     echo "[entrypoint] Set these env vars and redeploy:"
-    echo "[entrypoint]   BT_HOTKEY_B64"
-    echo "[entrypoint]   BT_COLDKEYPUB_B64"
-    echo "[entrypoint]   BT_COLDKEY_B64"
+    echo "[entrypoint]   BT_HOTKEY_B64 (required)"
+    echo "[entrypoint]   BT_COLDKEYPUB_B64 (required)"
+    echo "[entrypoint]   BT_COLDKEY_B64 (optional - only for staking/transfer from this wallet)"
     echo "[entrypoint] ================================================"
     echo "[entrypoint] Waiting for configuration... (sleeping)"
     # Sleep forever so Railway doesn't restart-loop
@@ -45,9 +45,9 @@ echo "$BT_COLDKEYPUB_B64" | base64 -d > "${WALLET_DIR}/coldkeypub"
 cp "${WALLET_DIR}/coldkeypub" "${WALLET_DIR}/coldkeypub.txt"
 echo "[entrypoint] Coldkeypub written (coldkeypub + coldkeypub.txt)"
 
-# Decode coldkey encrypted (required for set_weights / registration)
+# Decode coldkey (optional: set_weights is signed by hotkey; coldkey only needed for staking/transfer from this wallet)
 if [ -z "$BT_COLDKEY_B64" ]; then
-    echo "[entrypoint] WARNING: BT_COLDKEY_B64 not set - set_weights may fail"
+    echo "[entrypoint] BT_COLDKEY_B64 not set (optional - validator only needs hotkey + coldkeypub for set_weights)"
 else
     echo "$BT_COLDKEY_B64" | base64 -d > "${WALLET_DIR}/coldkey"
     echo "[entrypoint] Coldkey written"
