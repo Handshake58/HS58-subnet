@@ -17,8 +17,12 @@ def read_requirements(path):
 
 requirements = read_requirements("requirements.txt")
 
-with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
+readme_path = os.path.join(here, "README.md")
+if os.path.exists(readme_path):
+    with open(readme_path, encoding="utf-8") as f:
+        long_description = f.read()
+else:
+    long_description = ""
 
 with codecs.open(
     os.path.join(here, "subnet58/__init__.py"), encoding="utf-8"

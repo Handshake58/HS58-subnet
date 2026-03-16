@@ -16,19 +16,16 @@ DRAIN_CHANNEL_ADDRESS = "0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A"
 USDC_DECIMALS = 6
 
 # ---------------------------------------------------------------------------
-# Scoring Weights
+# DRAIN Scanning
 # ---------------------------------------------------------------------------
-CLAIMS_WINDOW_DAYS = 7
-WEIGHT_CLAIMS = 0.6
-WEIGHT_AVAILABILITY = 0.4
+CLAIMS_WINDOW_DAYS = 3
 
 # ---------------------------------------------------------------------------
 # Polygon RPC (ordered by priority)
 # ---------------------------------------------------------------------------
 POLYGON_RPC_ENDPOINTS = [
     os.getenv("POLYGON_RPC_URL"),           # Alchemy (recommended)
-    "https://polygon-rpc.com",               # Fallback 1
-    "https://rpc.ankr.com/polygon",          # Fallback 2
+    "https://rpc.ankr.com/polygon",          # Fallback
 ]
 
 # Blocks per get_logs call (Alchemy ~2000, public ~1000)
@@ -38,9 +35,16 @@ LOG_QUERY_CHUNK_SIZE = int(os.getenv("LOG_CHUNK_SIZE", "2000"))
 BLOCKS_PER_DAY = 43200
 
 # ---------------------------------------------------------------------------
-# Subnet Hyperparameters (set on-chain via btcli, documented here)
+# Bittensor Tempo
 # ---------------------------------------------------------------------------
-BURN_RATE = 0.9  # 90% of recycled TAO is burned
+TEMPO = 360             # 360 blocks per epoch
+POLL_INTERVAL = 12      # Seconds between block checks in the validator poll loop
+
+# ---------------------------------------------------------------------------
+# Validator Weight Distribution
+# ---------------------------------------------------------------------------
+BURN_UID = 155           # UID that receives the burn fraction of validator weights
+BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split equally across WTA winners
 
 # ---------------------------------------------------------------------------
 # Miner Config (from environment)

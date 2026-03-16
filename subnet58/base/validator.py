@@ -2,6 +2,7 @@
 # Base validator class for Subnet 58
 
 import copy
+import time
 import numpy as np
 import asyncio
 import argparse
@@ -17,6 +18,7 @@ from traceback import print_exception
 
 from subnet58.base.neuron import BaseNeuron
 from subnet58.utils.config import add_validator_args
+from subnet58.config import TEMPO, POLL_INTERVAL
 
 
 class BaseValidatorNeuron(BaseNeuron):
@@ -63,20 +65,45 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.error(f"Failed to serve Axon: {e}")
 
     def run(self):
-        """Main loop for the validator."""
+        """
+        Epoch-gated validator loop.
+
+        Polls the Bittensor block number every POLL_INTERVAL seconds.
+        When a new epoch begins (current_block // TEMPO changes), runs
+        a full validation round: sync, forward, set_weights, save_state.
+        """
         self.sync()
         bt.logging.info(f"Validator starting at block: {self.block}")
 
+        last_epoch = None
+
         try:
-            while True:
-                bt.logging.info(f"step({self.step}) block({self.block})")
-                self.loop.run_until_complete(self.forward())
+            while not self.should_exit:
+                current_block = self.block
+                epoch = current_block // TEMPO
+                blocks_into = current_block % TEMPO
+                blocks_remaining = TEMPO - blocks_into
 
-                if self.should_exit:
-                    break
+                if epoch != last_epoch:
+                    bt.logging.info(
+                        f"Epoch {epoch} started | block={current_block} "
+                        f"into_epoch={blocks_into} remaining={blocks_remaining}"
+                    )
+                    self.sync()
+                    self.loop.run_until_complete(self.forward())
+                    if not self.config.neuron.disable_set_weights:
+                        self.set_weights()
+                    self.save_state()
+                    last_epoch = epoch
+                    self.step += 1
+                else:
+                    bt.logging.info(
+                        f"Waiting | block={current_block} epoch={epoch} "
+                        f"into_epoch={blocks_into} remaining={blocks_remaining}"
+                    )
 
-                self.sync()
-                self.step += 1
+                time.sleep(POLL_INTERVAL)
+
         except KeyboardInterrupt:
             bt.logging.success("Validator killed by keyboard interrupt.")
             exit()
