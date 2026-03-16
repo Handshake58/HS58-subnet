@@ -77,9 +77,17 @@ class Validator(BaseValidatorNeuron):
 
         # 3. Fetch provider categories (filtered to claimed miner wallets only)
         wallet_categories = self._fetch_provider_categories(miner_wallet_set)
+
+        if wallet_categories is None:
+            bt.logging.warning(
+                "Marketplace unreachable — keeping previous round scores."
+            )
+            return
+
         bt.logging.info(f"Wallets mapped to categories: {len(wallet_categories)}")
 
         # 4. Verify ownership and collect claims per miner
+        #    Only miners registered in the marketplace are eligible.
         miner_data = {}  # index i -> {uid, wallet, category, claims}
 
         for i, (uid, response) in enumerate(zip(miner_uids, responses)):
@@ -93,7 +101,9 @@ class Validator(BaseValidatorNeuron):
                 continue
 
             wallet_lower = wallet.lower()
-            cat = wallet_categories.get(wallet_lower, "llm")
+            if wallet_lower not in wallet_categories:
+                continue
+            cat = wallet_categories[wallet_lower]
             claims = self.drain_scanner.get_claims(wallet_lower)
 
             miner_data[i] = {
@@ -142,7 +152,9 @@ class Validator(BaseValidatorNeuron):
         new_scores = np.zeros(len(self.scores), dtype=np.float32)
 
         if n_winners == 0:
-            bt.logging.warning("No WTA winners this round — scores not updated.")
+            bt.logging.warning("No WTA winners this round — all weight to burn UID.")
+            new_scores[BURN_UID] = 1.0
+            self.scores = new_scores
             return
 
         new_scores[BURN_UID] = BURN_FRACTION
@@ -156,11 +168,14 @@ class Validator(BaseValidatorNeuron):
         )
         self.scores = new_scores
 
-    def _fetch_provider_categories(self, miner_wallet_set: set) -> dict:
+    def _fetch_provider_categories(self, miner_wallet_set: set) -> dict | None:
         """
         Fetch provider wallet -> category mapping from marketplace API.
         Only returns entries for wallets present in miner_wallet_set.
-        Falls back to empty dict (all miners default to "llm") if unreachable.
+
+        Returns:
+            dict  – wallet -> category mapping (may be empty if no wallets match)
+            None  – marketplace was unreachable (caller should preserve previous scores)
         """
         try:
             resp = requests.get(
@@ -185,10 +200,9 @@ class Validator(BaseValidatorNeuron):
             return categories
         except Exception as e:
             bt.logging.warning(
-                f"[Categories] Failed to fetch from marketplace: {e} "
-                f"(all miners default to 'llm')"
+                f"[Categories] Marketplace unreachable: {e}"
             )
-            return {}
+            return None
 
     @staticmethod
     def _get_field(response, field: str, default=None):
