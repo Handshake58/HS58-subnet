@@ -114,6 +114,19 @@ run_neuron() {
 while true; do
     run_neuron "$@"
     exit_code=$?
+
+    if [ $exit_code -eq 42 ]; then
+        echo "[entrypoint] Auto-update triggered (exit code 42)."
+        echo "[entrypoint] Pulling latest code..."
+        cd /app
+        git pull origin "${AUTOUPDATE_BRANCH:-main}" --ff-only
+        echo "[entrypoint] Reinstalling package..."
+        pip install --no-cache-dir -e .
+        echo "[entrypoint] Update complete. Restarting immediately."
+        restart_delay=5
+        continue
+    fi
+
     echo "[entrypoint] Neuron exited with code ${exit_code}. Restarting in ${restart_delay}s..."
     sleep $restart_delay
     # Exponential backoff, capped at MAX_RESTART_DELAY

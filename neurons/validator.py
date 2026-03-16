@@ -7,6 +7,7 @@
 # 4. Winner Takes All per category: verified miner with most claims wins
 # 5. Sets weights on Bittensor (90% burn, 10% split equally across winners)
 
+import sys
 import time
 import numpy as np
 import bittensor as bt
@@ -246,5 +247,8 @@ class Validator(BaseValidatorNeuron):
 if __name__ == "__main__":
     with Validator() as validator:
         while True:
+            if validator._update_exit_code is not None:
+                bt.logging.info("Auto-update triggered, exiting for update.")
+                sys.exit(validator._update_exit_code)
             bt.logging.info(f"Validator running... {time.time()}")
             time.sleep(60)

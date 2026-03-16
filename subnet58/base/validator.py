@@ -2,7 +2,9 @@
 # Base validator class for Subnet 58
 
 import copy
+import os
 import time
+import subprocess
 import numpy as np
 import asyncio
 import argparse
@@ -18,7 +20,13 @@ from traceback import print_exception
 
 from subnet58.base.neuron import BaseNeuron
 from subnet58.utils.config import add_validator_args
-from subnet58.config import TEMPO, POLL_INTERVAL
+from subnet58.config import (
+    TEMPO,
+    POLL_INTERVAL,
+    AUTOUPDATE_ENABLED,
+    AUTOUPDATE_BRANCH,
+    AUTOUPDATE_EXIT_CODE,
+)
 
 
 class BaseValidatorNeuron(BaseNeuron):
@@ -53,6 +61,7 @@ class BaseValidatorNeuron(BaseNeuron):
         self.is_running: bool = False
         self.thread: Union[threading.Thread, None] = None
         self.lock = asyncio.Lock()
+        self._update_exit_code: Union[int, None] = None
 
     def serve_axon(self):
         bt.logging.info("Serving axon to chain...")
@@ -94,6 +103,7 @@ class BaseValidatorNeuron(BaseNeuron):
                     if not self.config.neuron.disable_set_weights:
                         self.set_weights()
                     self.save_state()
+                    self._check_for_update()
                     last_epoch = epoch
                     self.step += 1
                 else:
@@ -167,6 +177,42 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.info("set_weights on chain successfully!")
         else:
             bt.logging.error(f"set_weights failed: {msg}")
+
+    def _check_for_update(self):
+        """
+        Compare local HEAD against the remote branch.  If a newer commit
+        exists, set should_exit so the entrypoint can pull and restart.
+        """
+        if not AUTOUPDATE_ENABLED:
+            return
+        try:
+            repo_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+            subprocess.run(
+                ["git", "fetch", "origin", AUTOUPDATE_BRANCH],
+                capture_output=True, timeout=30, cwd=repo_root,
+            )
+            local_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=5, cwd=repo_root,
+            ).stdout.strip()
+            remote_sha = subprocess.run(
+                ["git", "rev-parse", f"origin/{AUTOUPDATE_BRANCH}"],
+                capture_output=True, text=True, timeout=5, cwd=repo_root,
+            ).stdout.strip()
+
+            if local_sha and remote_sha and local_sha != remote_sha:
+                bt.logging.info(
+                    f"Update available: {local_sha[:8]} -> {remote_sha[:8]}. "
+                    f"Exiting for auto-update."
+                )
+                self._update_exit_code = AUTOUPDATE_EXIT_CODE
+                self.should_exit = True
+            else:
+                bt.logging.debug(f"Auto-update: up to date at {local_sha[:8]}")
+        except Exception as e:
+            bt.logging.warning(f"Auto-update check failed (non-fatal): {e}")
 
     def resync_metagraph(self):
         """Resyncs metagraph and handles hotkey changes."""

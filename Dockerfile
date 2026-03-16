@@ -2,25 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# System dependencies (git required for runtime auto-update)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better layer caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Clone repo so .git is present for auto-update at runtime
+ARG REPO_URL=https://github.com/Handshake58/HS58-subnet.git
+ARG BRANCH=main
+RUN git clone --branch ${BRANCH} --single-branch ${REPO_URL} .
 
-# Copy only the files needed to run the neuron
-COPY setup.py .
-COPY neurons/ neurons/
-COPY subnet58/ subnet58/
+# Install Python dependencies and the subnet58 package
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -e .
 
-# Install the subnet58 package
-RUN pip install --no-cache-dir -e .
+RUN chmod +x entrypoint.sh
 
-# Copy and prepare entrypoint
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
