@@ -58,6 +58,18 @@ echo "[entrypoint] Wallet setup complete."
 # Auto-restart loop: restarts the neuron on crash with backoff (max 120s)
 MAX_RESTART_DELAY=120
 restart_delay=5
+child_pid=""
+
+# Forward SIGTERM/SIGINT to the child process so `docker stop` shuts down cleanly
+cleanup() {
+    echo "[entrypoint] Caught signal — stopping neuron (pid=${child_pid})..."
+    if [ -n "$child_pid" ]; then
+        kill "$child_pid" 2>/dev/null
+        wait "$child_pid" 2>/dev/null
+    fi
+    exit 0
+}
+trap cleanup SIGTERM SIGINT
 
 run_neuron() {
     if [ "$NEURON_TYPE" = "miner" ]; then
@@ -112,8 +124,42 @@ run_neuron() {
 
 # Restart loop with exponential backoff
 while true; do
-    run_neuron "$@"
+    run_neuron "$@" &
+    child_pid=$!
+    wait $child_pid
     exit_code=$?
+    child_pid=""
+
+    if [ $exit_code -eq 42 ]; then
+        echo "[entrypoint] Auto-update triggered (exit code 42)."
+        cd /app
+        BRANCH="${AUTOUPDATE_BRANCH:-main}"
+
+        echo "[entrypoint] Fetching origin/${BRANCH}..."
+        if ! git fetch origin "$BRANCH"; then
+            echo "[entrypoint] ERROR: git fetch failed. Restarting with current code in ${restart_delay}s."
+            sleep $restart_delay
+            continue
+        fi
+
+        echo "[entrypoint] Resetting to origin/${BRANCH}..."
+        if ! git reset --hard "origin/${BRANCH}"; then
+            echo "[entrypoint] ERROR: git reset failed. Restarting with current code in ${restart_delay}s."
+            sleep $restart_delay
+            continue
+        fi
+
+        echo "[entrypoint] Reinstalling dependencies and package..."
+        pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir -e .
+        if [ $? -ne 0 ]; then
+            echo "[entrypoint] WARNING: pip install failed. Restarting with updated code anyway."
+        fi
+
+        echo "[entrypoint] Update complete. Restarting immediately."
+        restart_delay=5
+        continue
+    fi
+
     echo "[entrypoint] Neuron exited with code ${exit_code}. Restarting in ${restart_delay}s..."
     sleep $restart_delay
     # Exponential backoff, capped at MAX_RESTART_DELAY

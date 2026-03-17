@@ -47,6 +47,13 @@ BURN_UID = 155           # UID that receives the burn fraction of validator weig
 BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split equally across WTA winners
 
 # ---------------------------------------------------------------------------
+# Auto-Update (self-hosted Docker)
+# ---------------------------------------------------------------------------
+AUTOUPDATE_ENABLED = os.getenv("AUTOUPDATE_ENABLED", "false").lower() == "true"
+AUTOUPDATE_BRANCH = os.getenv("AUTOUPDATE_BRANCH", "main")
+AUTOUPDATE_EXIT_CODE = 42      # entrypoint.sh treats this as "pull & restart"
+
+# ---------------------------------------------------------------------------
 # Miner Config (from environment)
 # ---------------------------------------------------------------------------
 MINER_POLYGON_WALLET = os.getenv("POLYGON_WALLET")

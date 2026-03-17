@@ -11,21 +11,21 @@ Providers who deliver real AI service (proven by DRAIN micropayments) earn TAO r
 ```mermaid
 flowchart TB
     subgraph miner [MINER]
-        M1["1. Deploy Provider\nHS58 template"]
-        M2["2. Install btcli\n+ create wallet"]
-        M3["3. Register on Subnet 58\ncosts ~0.1 TAO"]
+        M1["1. Deploy Provider HS58 template"]
+        M2["2. Install btcli + create wallet"]
+        M3["3. Register on Subnet 58 costs TAO"]
         M4["4. Deploy miner neuron"]
         M1 --> M2 --> M3 --> M4
     end
 
     subgraph validator [VALIDATOR]
-        V1["1. Install btcli\n+ create wallet"]
-        V2["2. Stake TAO\nfor weight-setting permission"]
+        V1["1. Install btcli + create wallet"]
+        V2["2. Stake TAO for weight-setting permission"]
         V3["3. Deploy validator neuron"]
         V1 --> V2 --> V3
     end
 
-    M4 --> Earn["Earn TAO rewards\n41% miners | 41% validators | 18% subnet owner"]
+    M4 --> Earn["Earn TAO rewards 41% miners | 41% validators | 18% subnet owner"]
     V3 --> Earn
 ```
 
@@ -40,16 +40,11 @@ Validator → scans ChannelClaimed events → scores Provider
 Validator → sets weights on Bittensor → Provider earns TAO
 ```
 
-## Scoring (2 Metrics)
+## Scoring
 
-| Metric | Weight | Source | Window |
-|---|---|---|---|
-| **DRAIN Claims** | 60% | ChannelClaimed events on Polygon | 7 days rolling |
-| **Availability** | 40% | Synapse response with wallet proof | Current |
+The scoring is winner takes all **per provider category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round. The score per provider is the sum of the square roots of individual channel claims. 
 
-Normalization: Relative to top provider **within the same category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round.
-
-**Burn:** 90% of recycled TAO during registration is burned (set on-chain).
+**Burn:** A fraction of miner rewards (starting at 90%) is burned.
 
 ## Anti-Gaming
 
@@ -66,9 +61,9 @@ Normalization: Relative to top provider **within the same category** (e.g., LLM 
 ## Prerequisites
 
 - **Python** >= 3.9
-- **btcli** (Bittensor CLI): `pip install bittensor`
-- **TAO** in your coldkey wallet (~0.1 TAO for miner registration, more for validator staking)
-- **Polygon RPC URL** (recommended): [Alchemy free tier](https://www.alchemy.com/) for reliable event scanning
+- **btcli** (Bittensor CLI): `pip install bittensor bittensor-cli`
+- **TAO** in your coldkey wallet (variable cost for miner registration, more than the 1000 alpha stake required for validator permit)
+- **Polygon RPC URL** (recommended): [Alchemy free tier](https://www.alchemy.com/) for reliable event scanning, Pay As You Go $5 per month tier required for validators.
 
 ---
 
@@ -123,7 +118,7 @@ npm install && cp env.example .env
 btcli subnet register --netuid 58 --wallet.name my-miner --wallet.hotkey default
 ```
 
-This costs a small TAO recycle fee (typically 0.01-0.1 TAO depending on demand).
+This costs a small TAO recycle fee (amount is dynamic and depends on demand).
 
 ### Step 3: Configure miner environment
 
@@ -136,7 +131,7 @@ Edit `.env`:
 # Your Polygon wallet (receives DRAIN payments from agents)
 POLYGON_WALLET=0x...
 # Private key for wallet ownership proof (same wallet)
-POLYGON_PRIVATE_KEY=0x...
+POLYGON_PRIVATE_KEY=5...
 # Your provider's API URL (the one you deployed in Step 1)
 API_URL=https://your-provider.up.railway.app
 # Optional: marketplace URL (default: https://www.handshake58.com)
@@ -174,7 +169,7 @@ NEURON_TYPE=miner
 
 # Miner-specific
 POLYGON_WALLET=0x...
-POLYGON_PRIVATE_KEY=0x...
+POLYGON_PRIVATE_KEY=5...
 API_URL=https://your-provider.up.railway.app
 
 # Optional
@@ -263,11 +258,38 @@ POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
 
 3. Base64-encode wallet files the same way as for the miner (see above)
 
+> **Note:** Do not set `AUTOUPDATE_ENABLED=true` on Railway. Railway automatically rebuilds and redeploys your container when you push to the linked branch, so the built-in auto-update mechanism is not needed and would cause redundant restarts.
+
 The validator will:
 - Query all miners for wallet proofs (availability check)
 - Scan DRAIN `ChannelClaimed` events on Polygon (3-day window)
 - Score miners, winner takes all per category
 - Set weights on Bittensor
+
+### Step 4 Alternative: Deploy with Docker (self-hosted)
+
+If you're running on your own server instead of Railway, set `AUTOUPDATE_ENABLED=true` so the validator automatically checks for new commits on `main` after each validation round, pulls the latest code, and restarts.
+
+```bash
+docker build -t hs58-validator .
+
+docker run -d --restart unless-stopped \
+  -e BT_HOTKEY_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/hotkeys/default)" \
+  -e BT_COLDKEYPUB_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/coldkeypub)" \
+  -e NEURON_TYPE=validator \
+  -e WALLET_NAME=my-validator \
+  -e HOTKEY_NAME=default \
+  -e POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY \
+  -e AUTOUPDATE_ENABLED=true \
+  hs58-validator
+```
+
+Auto-update is controlled by these optional env vars:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTOUPDATE_ENABLED` | `false` | Set to `true` for self-hosted Docker deployments |
+| `AUTOUPDATE_BRANCH` | `main` | Remote branch to track |
 
 ---
 

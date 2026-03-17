@@ -7,6 +7,7 @@
 # 4. Winner Takes All per category: verified miner with most claims wins
 # 5. Sets weights on Bittensor (90% burn, 10% split equally across winners)
 
+import sys
 import time
 import numpy as np
 import bittensor as bt
@@ -46,8 +47,8 @@ class Validator(BaseValidatorNeuron):
         Validator forward pass:
         1. Query all miners
         2. Scan DRAIN events
-        3. Fetch provider categories (filtered to claimed miner wallets)
-        4. Verify ownership and collect claims per miner
+        3. Fetch marketplace registry (hotkey -> wallet + category)
+        4. Verify ownership, registry membership, and wallet match
         5. Winner Takes All — verified miner with most claims wins per category
         6. Update scores (90% burn, 10% split equally across winners)
         """
@@ -68,26 +69,19 @@ class Validator(BaseValidatorNeuron):
         bt.logging.info("Scanning DRAIN ChannelClaimed events...")
         self.drain_scanner.update_claims()
 
-        # Build wallet set from claimed wallets in responses (for category lookup filter)
-        miner_wallet_set = {
-            self._get_field(r, "polygon_wallet").lower()
-            for r in responses
-            if self._get_field(r, "polygon_wallet")
-        }
+        # 3. Fetch marketplace registry (hotkey -> {wallet, category})
+        registry = self._fetch_provider_registry()
 
-        # 3. Fetch provider categories (filtered to claimed miner wallets only)
-        wallet_categories = self._fetch_provider_categories(miner_wallet_set)
-
-        if wallet_categories is None:
+        if registry is None:
             bt.logging.warning(
                 "Marketplace unreachable — keeping previous round scores."
             )
             return
 
-        bt.logging.info(f"Wallets mapped to categories: {len(wallet_categories)}")
+        bt.logging.info(f"Marketplace registry: {len(registry)} registered miners")
 
         # 4. Verify ownership and collect claims per miner
-        #    Only miners registered in the marketplace are eligible.
+        #    Three gates: ownership proof, hotkey in registry, wallet matches registration.
         miner_data = {}  # index i -> {uid, wallet, category, claims}
 
         for i, (uid, response) in enumerate(zip(miner_uids, responses)):
@@ -100,10 +94,17 @@ class Validator(BaseValidatorNeuron):
                 bt.logging.trace(f"Wallet ownership verification failed for {hotkey}")
                 continue
 
-            wallet_lower = wallet.lower()
-            if wallet_lower not in wallet_categories:
+            if hotkey not in registry:
                 continue
-            cat = wallet_categories[wallet_lower]
+            reg = registry[hotkey]
+            wallet_lower = wallet.lower()
+            if wallet_lower != reg["wallet"]:
+                bt.logging.trace(
+                    f"Wallet mismatch for {hotkey[:10]}...: "
+                    f"responded={wallet_lower[:10]}... registered={reg['wallet'][:10]}..."
+                )
+                continue
+            cat = reg["category"]
             claims = self.drain_scanner.get_claims(wallet_lower)
 
             miner_data[i] = {
@@ -113,68 +114,87 @@ class Validator(BaseValidatorNeuron):
                 "claims": claims,
             }
 
-        # 5. Winner Takes All — verified miner with most claims wins per category
-        category_winner = {}  # category -> index i
+        # 5. Winner Takes All per category (ties share the category's weight)
+        category_winners = {}  # category -> [index, ...]
 
         for i, data in miner_data.items():
             cat = data["category"]
-            if cat not in category_winner or data["claims"] > miner_data[category_winner[cat]]["claims"]:
-                category_winner[cat] = i
+            claims = data["claims"]
+            if cat not in category_winners:
+                category_winners[cat] = [i]
+            else:
+                best = miner_data[category_winners[cat][0]]["claims"]
+                if claims > best:
+                    category_winners[cat] = [i]
+                elif claims == best:
+                    category_winners[cat].append(i)
 
-        for cat, top_idx in category_winner.items():
-            d = miner_data[top_idx]
-            bt.logging.info(
-                f"  WTA winner [{cat}] UID {d['uid']}: "
-                f"wallet={d['wallet'][:10]}..., claims=${d['claims']:.2f}"
-            )
+        for cat in list(category_winners):
+            if miner_data[category_winners[cat][0]]["claims"] == 0:
+                bt.logging.info(f"  [{cat}] All miners have 0 claims — no winner")
+                del category_winners[cat]
 
-        # 6. Update scores: 90% burn, 10% split equally across WTA winners
-        winner_uids = [miner_data[i]["uid"] for i in category_winner.values()]
+        n_winners = sum(len(indices) for indices in category_winners.values())
+        for cat, indices in category_winners.items():
+            for idx in indices:
+                d = miner_data[idx]
+                bt.logging.info(
+                    f"  WTA winner [{cat}] UID {d['uid']}: "
+                    f"wallet={d['wallet'][:10]}..., claims=${d['claims']:.2f}"
+                    f"{' (tied)' if len(indices) > 1 else ''}"
+                )
+
+        # 6. Update scores: 90% burn, 10% split equally across categories,
+        #    then equally among tied winners within each category.
         bt.logging.info(
-            f"Validation round complete: {len(winner_uids)} WTA winners "
-            f"from {len(category_winner)} categories, {len(miner_uids)} total miners"
+            f"Validation round complete: {n_winners} WTA winners "
+            f"from {len(category_winners)} categories, {len(miner_uids)} total miners"
         )
-        self.update_scores_with_burn(winner_uids)
+        self.update_scores_with_burn(category_winners, miner_data)
 
-    def update_scores_with_burn(self, winner_uids: list):
+    def update_scores_with_burn(self, category_winners: dict, miner_data: dict):
         """
         Set self.scores for the upcoming set_weights() call.
 
-        Distributes weight as:
-          - BURN_UID gets BURN_FRACTION (default 90%) of total weight.
-          - Remaining weight (default 10%) is split equally across WTA winners.
-          - All other UIDs get 0.
+        Weight is distributed per-category first, then split among tied
+        winners within each category:
+          - BURN_UID gets BURN_FRACTION (default 90%).
+          - Remaining weight is split equally across categories.
+          - Within each category, the share is split equally among winners.
 
-        Does not use an exponential moving average — scores are set fresh
-        each round so that set_weights() always reflects the current round.
+        Example: 2 categories, one has a tie of 2 miners:
+          burn=90%, each category gets 5%, tied miners each get 2.5%.
         """
-        n_winners = len(winner_uids)
         new_scores = np.zeros(len(self.scores), dtype=np.float32)
+        n_categories = len(category_winners)
 
-        if n_winners == 0:
+        if n_categories == 0:
             bt.logging.warning("No WTA winners this round — all weight to burn UID.")
             new_scores[BURN_UID] = 1.0
             self.scores = new_scores
             return
 
         new_scores[BURN_UID] = BURN_FRACTION
-        winner_weight = (1.0 - BURN_FRACTION) / n_winners
-        for uid in winner_uids:
-            new_scores[uid] = winner_weight
+        category_weight = (1.0 - BURN_FRACTION) / n_categories
+
+        for cat, indices in category_winners.items():
+            per_miner = category_weight / len(indices)
+            for i in indices:
+                uid = miner_data[i]["uid"]
+                new_scores[uid] = per_miner
 
         bt.logging.info(
             f"Scores set: UID {BURN_UID} (burn) = {BURN_FRACTION:.0%}, "
-            f"{n_winners} winner(s) = {winner_weight:.4f} each"
+            f"{n_categories} categories, weight/category = {category_weight:.4f}"
         )
         self.scores = new_scores
 
-    def _fetch_provider_categories(self, miner_wallet_set: set) -> dict | None:
+    def _fetch_provider_registry(self) -> dict | None:
         """
-        Fetch provider wallet -> category mapping from marketplace API.
-        Only returns entries for wallets present in miner_wallet_set.
+        Fetch the marketplace provider registry.
 
         Returns:
-            dict  – wallet -> category mapping (may be empty if no wallets match)
+            dict  – hotkey -> {"wallet": str, "category": str}  (may be empty)
             None  – marketplace was unreachable (caller should preserve previous scores)
         """
         try:
@@ -185,22 +205,26 @@ class Validator(BaseValidatorNeuron):
             resp.raise_for_status()
             data = resp.json()
 
-            categories = {}
+            registry = {}
             for p in data.get("miners", []):
                 if p.get("tier", "") != "bittensor":
                     continue
-                addr = p.get("wallet", "").lower()
-                if addr and addr in miner_wallet_set:
-                    categories[addr] = p.get("category", "llm")
+                hk = p.get("hotkey", "")
+                wallet = p.get("wallet", "").lower()
+                if hk and wallet:
+                    registry[hk] = {
+                        "wallet": wallet,
+                        "category": p.get("category", "llm"),
+                    }
 
             bt.logging.info(
-                f"[Categories] Fetched {len(categories)} provider categories "
+                f"[Registry] Fetched {len(registry)} registered providers "
                 f"from marketplace"
             )
-            return categories
+            return registry
         except Exception as e:
             bt.logging.warning(
-                f"[Categories] Marketplace unreachable: {e}"
+                f"[Registry] Marketplace unreachable: {e}"
             )
             return None
 
@@ -246,5 +270,8 @@ class Validator(BaseValidatorNeuron):
 if __name__ == "__main__":
     with Validator() as validator:
         while True:
+            if validator._update_exit_code is not None:
+                bt.logging.info("Auto-update triggered, exiting for update.")
+                sys.exit(validator._update_exit_code)
             bt.logging.info(f"Validator running... {time.time()}")
             time.sleep(60)
