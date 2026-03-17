@@ -49,7 +49,7 @@ BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split eq
 # ---------------------------------------------------------------------------
 # Auto-Update (self-hosted Docker)
 # ---------------------------------------------------------------------------
-AUTOUPDATE_ENABLED = os.getenv("AUTOUPDATE_ENABLED", "true").lower() == "true"
+AUTOUPDATE_ENABLED = os.getenv("AUTOUPDATE_ENABLED", "false").lower() == "true"
 AUTOUPDATE_BRANCH = os.getenv("AUTOUPDATE_BRANCH", "main")
 AUTOUPDATE_EXIT_CODE = 42      # entrypoint.sh treats this as "pull & restart"
 
