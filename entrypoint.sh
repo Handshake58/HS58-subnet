@@ -8,7 +8,7 @@
 #
 # NEURON_TYPE=validator (default) → neurons/validator.py
 # NEURON_TYPE=miner               → neurons/miner.py
-#   Miner also requires: POLYGON_WALLET, POLYGON_PRIVATE_KEY, API_URL
+#   Miner is a Neutral Monitor — no Polygon wallet needed
 # ============================================================================
 
 NEURON_TYPE="${NEURON_TYPE:-validator}"
@@ -58,37 +58,11 @@ echo "[entrypoint] Wallet setup complete."
 # Auto-restart loop: restarts the neuron on crash with backoff (max 120s)
 MAX_RESTART_DELAY=120
 restart_delay=5
-child_pid=""
-
-# Forward SIGTERM/SIGINT to the child process so `docker stop` shuts down cleanly
-cleanup() {
-    echo "[entrypoint] Caught signal — stopping neuron (pid=${child_pid})..."
-    if [ -n "$child_pid" ]; then
-        kill "$child_pid" 2>/dev/null
-        wait "$child_pid" 2>/dev/null
-    fi
-    exit 0
-}
-trap cleanup SIGTERM SIGINT
 
 run_neuron() {
     if [ "$NEURON_TYPE" = "miner" ]; then
-        # Validate miner-specific env vars
-        if [ -z "$POLYGON_WALLET" ] || [ -z "$POLYGON_PRIVATE_KEY" ] || [ -z "$API_URL" ]; then
-            echo "[entrypoint] ================================================"
-            echo "[entrypoint] Miner requires additional env vars:"
-            echo "[entrypoint]   POLYGON_WALLET       - Polygon wallet address"
-            echo "[entrypoint]   POLYGON_PRIVATE_KEY   - Polygon private key (for ownership proof)"
-            echo "[entrypoint]   API_URL              - Provider API endpoint URL"
-            echo "[entrypoint] Optional:"
-            echo "[entrypoint]   MARKETPLACE_URL      - Marketplace URL (default: https://www.handshake58.com)"
-            echo "[entrypoint] ================================================"
-            echo "[entrypoint] Waiting for configuration... (sleeping)"
-            while true; do sleep 3600; done
-        fi
-
         AXON_PORT="${AXON_PORT:-8091}"
-        echo "[entrypoint] Starting MINER (wallet=${POLYGON_WALLET}, api=${API_URL}, port=${AXON_PORT})..."
+        echo "[entrypoint] Starting MINER (Neutral Monitor, port=${AXON_PORT})..."
 
         MINER_ARGS="--netuid 58 --wallet.name $WALLET_NAME --wallet.hotkey $HOTKEY_NAME --axon.port $AXON_PORT --logging.debug"
 
@@ -124,42 +98,8 @@ run_neuron() {
 
 # Restart loop with exponential backoff
 while true; do
-    run_neuron "$@" &
-    child_pid=$!
-    wait $child_pid
+    run_neuron "$@"
     exit_code=$?
-    child_pid=""
-
-    if [ $exit_code -eq 42 ]; then
-        echo "[entrypoint] Auto-update triggered (exit code 42)."
-        cd /app
-        BRANCH="${AUTOUPDATE_BRANCH:-main}"
-
-        echo "[entrypoint] Fetching origin/${BRANCH}..."
-        if ! git fetch origin "$BRANCH"; then
-            echo "[entrypoint] ERROR: git fetch failed. Restarting with current code in ${restart_delay}s."
-            sleep $restart_delay
-            continue
-        fi
-
-        echo "[entrypoint] Resetting to origin/${BRANCH}..."
-        if ! git reset --hard "origin/${BRANCH}"; then
-            echo "[entrypoint] ERROR: git reset failed. Restarting with current code in ${restart_delay}s."
-            sleep $restart_delay
-            continue
-        fi
-
-        echo "[entrypoint] Reinstalling dependencies and package..."
-        pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir -e .
-        if [ $? -ne 0 ]; then
-            echo "[entrypoint] WARNING: pip install failed. Restarting with updated code anyway."
-        fi
-
-        echo "[entrypoint] Update complete. Restarting immediately."
-        restart_delay=5
-        continue
-    fi
-
     echo "[entrypoint] Neuron exited with code ${exit_code}. Restarting in ${restart_delay}s..."
     sleep $restart_delay
     # Exponential backoff, capped at MAX_RESTART_DELAY

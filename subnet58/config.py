@@ -1,6 +1,6 @@
 # Handshake58 Subnet 58 - Configuration
 #
-# Constants for DRAIN Protocol integration and scoring.
+# Constants for Network Oracle, probe-based scoring.
 
 import os
 
@@ -10,53 +10,49 @@ import os
 NETUID = 58
 
 # ---------------------------------------------------------------------------
-# DRAIN Protocol (Polygon Mainnet)
+# Registry (Provider discovery for probing)
 # ---------------------------------------------------------------------------
-DRAIN_CHANNEL_ADDRESS = "0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A"
-USDC_DECIMALS = 6
-
-# ---------------------------------------------------------------------------
-# DRAIN Scanning
-# ---------------------------------------------------------------------------
-CLAIMS_WINDOW_DAYS = 3
-
-# ---------------------------------------------------------------------------
-# Polygon RPC (ordered by priority)
-# ---------------------------------------------------------------------------
-POLYGON_RPC_ENDPOINTS = [
-    os.getenv("POLYGON_RPC_URL"),           # Alchemy (recommended)
-    "https://rpc.ankr.com/polygon",          # Fallback
+DEFAULT_REGISTRIES = [
+    r.strip()
+    for r in os.getenv(
+        "REGISTRY_URLS",
+        "https://handshake58.com/api/validator/registry"
+    ).split(",")
+    if r.strip()
 ]
+REGISTRY_CACHE_FILE = os.getenv("REGISTRY_CACHE", "registry_cache.json")
 
-# Blocks per get_logs call (Alchemy ~2000, public ~1000)
-LOG_QUERY_CHUNK_SIZE = int(os.getenv("LOG_CHUNK_SIZE", "2000"))
+# ---------------------------------------------------------------------------
+# Probe Configuration
+# ---------------------------------------------------------------------------
+PROBE_TIMEOUT_MS = int(os.getenv("PROBE_TIMEOUT_MS", "5000"))
+PROBE_CONCURRENCY = int(os.getenv("PROBE_CONCURRENCY", "10"))
 
-# Polygon: ~1 block per 2 seconds = ~43200 blocks/day
-BLOCKS_PER_DAY = 43200
+# ---------------------------------------------------------------------------
+# Scoring
+# ---------------------------------------------------------------------------
+ACCURACY_EMA_ALPHA = float(os.getenv("ACCURACY_EMA_ALPHA", "0.3"))
 
 # ---------------------------------------------------------------------------
 # Bittensor Tempo
 # ---------------------------------------------------------------------------
-TEMPO = 360             # 360 blocks per epoch
-POLL_INTERVAL = 12      # Seconds between block checks in the validator poll loop
+TEMPO = 360
+POLL_INTERVAL = 12
 
 # ---------------------------------------------------------------------------
 # Validator Weight Distribution
 # ---------------------------------------------------------------------------
-BURN_UID = 155           # UID that receives the burn fraction of validator weights
-BURN_FRACTION = 0.9     # 90% of weight goes to burn UID; remaining 10% split equally across WTA winners
+BURN_UID = 155
+BURN_FRACTION = 0.9
 
 # ---------------------------------------------------------------------------
 # Auto-Update (self-hosted Docker)
 # ---------------------------------------------------------------------------
 AUTOUPDATE_ENABLED = os.getenv("AUTOUPDATE_ENABLED", "false").lower() == "true"
 AUTOUPDATE_BRANCH = os.getenv("AUTOUPDATE_BRANCH", "main")
-AUTOUPDATE_EXIT_CODE = 42      # entrypoint.sh treats this as "pull & restart"
+AUTOUPDATE_EXIT_CODE = 42
 
 # ---------------------------------------------------------------------------
-# Miner Config (from environment)
+# Marketplace
 # ---------------------------------------------------------------------------
-MINER_POLYGON_WALLET = os.getenv("POLYGON_WALLET")
-MINER_POLYGON_KEY = os.getenv("POLYGON_PRIVATE_KEY")
-MINER_API_URL = os.getenv("API_URL")
 MARKETPLACE_URL = os.getenv("MARKETPLACE_URL", "https://www.handshake58.com")
