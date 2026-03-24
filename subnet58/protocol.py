@@ -1,29 +1,33 @@
 # Handshake58 Subnet 58 - Protocol
 #
-# ProviderCheck: Validator asks miner to prove wallet ownership and availability.
-# 3 fields only. Validator reads DRAIN events directly from Polygon.
+# ProviderProbe: Validator sends a target URL, miner probes it and returns
+# reachability, HTTP status, and latency. Protocol-agnostic (DRAIN + MPP).
 
 import typing
 import bittensor as bt
 
 
-class ProviderCheck(bt.Synapse):
+class ProviderProbe(bt.Synapse):
     """
-    Validator -> Miner request/response.
+    Validator -> Miner probe request/response.
 
-    The validator sends an empty ProviderCheck to the miner.
-    The miner fills in its Polygon wallet, ownership proof, and API URL.
-    The validator verifies the proof and scores based on DRAIN claims + availability.
+    The validator sets target_url. The miner performs an HTTP GET,
+    measures latency, and fills the response fields.
+    Scoring is consensus-based: miners that agree with the majority score high.
     """
 
-    # Response fields (miner fills these)
-    polygon_wallet: typing.Optional[str] = None
-    wallet_proof: typing.Optional[str] = None
-    api_url: typing.Optional[str] = None
+    # Request (validator sets)
+    target_url: str = ""
 
-    def deserialize(self) -> typing.Dict[str, typing.Optional[str]]:
+    # Response (miner fills)
+    probe_latency_ms: typing.Optional[int] = None
+    probe_status: typing.Optional[int] = None
+    probe_reachable: typing.Optional[bool] = None
+
+    def deserialize(self) -> typing.Dict[str, typing.Any]:
         return {
-            "polygon_wallet": self.polygon_wallet,
-            "wallet_proof": self.wallet_proof,
-            "api_url": self.api_url,
+            "target_url": self.target_url,
+            "probe_latency_ms": self.probe_latency_ms,
+            "probe_status": self.probe_status,
+            "probe_reachable": self.probe_reachable,
         }

@@ -1,325 +1,192 @@
 # Handshake58 - Bittensor Subnet 58
 
-**DRAIN Protocol scoring for AI providers on Bittensor.**
+**Network Oracle: Decentralized provider monitoring for AI services.**
 
-Providers who deliver real AI service (proven by DRAIN micropayments) earn TAO rewards. No fake-able metrics — if agents pay, the service works.
-
----
-
-## Miner vs Validator
-
-```mermaid
-flowchart TB
-    subgraph miner [MINER]
-        M1["1. Deploy Provider HS58 template"]
-        M2["2. Install btcli + create wallet"]
-        M3["3. Register on Subnet 58 costs TAO"]
-        M4["4. Deploy miner neuron"]
-        M1 --> M2 --> M3 --> M4
-    end
-
-    subgraph validator [VALIDATOR]
-        V1["1. Install btcli + create wallet"]
-        V2["2. Stake TAO for weight-setting permission"]
-        V3["3. Deploy validator neuron"]
-        V1 --> V2 --> V3
-    end
-
-    M4 --> Earn["Earn TAO rewards 41% miners | 41% validators | 18% subnet owner"]
-    V3 --> Earn
-```
+Miners probe provider endpoints worldwide. Validators score miners by consensus accuracy. Honest monitors earn TAO — no wallets, no staking, no provider setup needed.
 
 ---
 
 ## How It Works
 
 ```
-Agent → pays per request via DRAIN vouchers → Provider
-Provider → claims USDC on-chain → Polygon (DRAIN Contract)
-Validator → scans ChannelClaimed events → scores Provider
-Validator → sets weights on Bittensor → Provider earns TAO
+Marketplace Registry ──► Validator ──► sends ProviderProbe to all Miners
+                                        │
+                         Miner A ◄──────┤──────► Miner B ◄──────┤──────► Miner C
+                           │                        │                        │
+                           ▼                        ▼                        ▼
+                     HTTP GET probe           HTTP GET probe           HTTP GET probe
+                     Provider URL             Provider URL             Provider URL
+                           │                        │                        │
+                           └────────────────────────┼────────────────────────┘
+                                                    ▼
+                                        Validator: Consensus
+                                        (majority vote + median latency)
+                                                    │
+                                                    ▼
+                                        Miner scores = accuracy vs consensus
+                                        → EMA smoothed → Bittensor weights
 ```
 
-## Scoring
+### Roles
 
-The scoring is winner takes all **per provider category** (e.g., LLM providers compete with LLMs, VPN with VPN). Categories are fetched from the Handshake58 marketplace API each validation round. The score per provider is the sum of the square roots of individual channel claims. 
+| Role | What it does | Requirements |
+|------|-------------|--------------|
+| **Miner** (Neutral Monitor) | Receives probe URLs from validators, performs HTTP GET, reports reachability + status + latency | VPS + internet |
+| **Validator** (Miner Evaluator) | Sends probe tasks, computes consensus, scores miners by accuracy, sets weights | Staked TAO + VPERMIT |
 
-**Burn:** A fraction of miner rewards (starting at 90%) is burned.
+### Scoring
 
-## Anti-Gaming
+Each epoch, the validator:
+
+1. Fetches the provider list from the Handshake58 marketplace registry
+2. Picks `PROBES_PER_ROUND` random providers (default: 5)
+3. Sends `ProviderProbe(target_url)` to **all** miners
+4. Computes **consensus**: majority vote on `reachable` + `status`, median `latency`
+5. Scores each miner: `0.4 * reachable_match + 0.3 * status_match + 0.3 * latency_closeness`
+6. Applies EMA smoothing and sets weights on Bittensor
+
+### Anti-Gaming
 
 | Attack | Why it fails |
-|---|---|
-| Fake ChannelClaimed | Provider can't sign as consumer |
-| Self-booking | Must deposit real USDC + pay gas |
-| Claim without service | Consumer won't sign vouchers |
-| Steal other's claims | Claims tied to provider address |
-| Fake wallet ownership | ECDSA signature verification |
+|--------|-------------|
+| Lie about reachability | Consensus detects disagreement — your score drops |
+| Fake latency values | Median filters outliers; deviation > `MAX_LATENCY_DEVIATION` scores 0 |
+| Collude with other miners | Requires >50% of miners; validators can spot-check independently |
+| Validator manipulates scores | Yuma consensus penalizes weight outliers |
+
+### Protocol Agnostic
+
+The oracle monitors **all** provider types: DRAIN, MPP (x402), and any HTTP service. The miner just pings URLs — it doesn't know or care about the payment protocol. A `402 Payment Required` response is a valid "alive" signal for MPP providers.
 
 ---
 
 ## Prerequisites
 
 - **Python** >= 3.9
-- **btcli** (Bittensor CLI): `pip install bittensor bittensor-cli`
-- **TAO** in your coldkey wallet (variable cost for miner registration, more than the 1000 alpha stake required for validator permit)
-- **Polygon RPC URL** (recommended): [Alchemy free tier](https://www.alchemy.com/) for reliable event scanning, Pay As You Go $5 per month tier required for validators.
+- **btcli**: `pip install bittensor bittensor-cli`
+- **TAO** in your coldkey wallet
+
+No Polygon wallet, no RPC URL, no Alchemy subscription needed.
 
 ---
 
-## Wallet Setup (Bittensor)
-
-### Create a new wallet
+## Wallet Setup
 
 ```bash
-# Install bittensor and cli
 pip install bittensor bittensor-cli
 
-# Create coldkey (stores your TAO)
-btcli wallet new_coldkey --wallet.name my-miner
+# Create coldkey (stores TAO)
+btcli wallet new_coldkey --wallet.name hs58
 
 # Create hotkey (used for subnet registration)
-btcli wallet new_hotkey --wallet.name my-miner --wallet.hotkey default
+btcli wallet new_hotkey --wallet.name hs58 --wallet.hotkey default
 ```
 
-> **Save your mnemonics!** These are the only way to recover your wallet. Store them in a password manager or write them down securely.
-
-### Fund your coldkey
-
-Send TAO to your coldkey SS58 address. Check your address:
+Save your mnemonics securely. Check your address:
 
 ```bash
-btcli wallet overview --wallet.name my-miner
+btcli wallet overview --wallet.name hs58
 ```
-
-You can buy TAO on exchanges like [MEXC](https://www.mexc.com/), [Gate.io](https://www.gate.io/), or [Bitget](https://www.bitget.com/).
 
 ---
 
 ## Run a Miner
 
-### Step 1: Deploy a provider
+Miners are **Neutral Monitors**. No provider, no wallet, no registration — just probe URLs.
 
-First, you need an AI provider running. There are two options for this.
-1) Pick a template from the [HS58 repo](https://github.com/Handshake58/HS58) and deploy on Railway:
-
-```bash
-git clone https://github.com/Handshake58/HS58.git
-cd HS58/providers/hs58-openai  # or any template
-npm install && cp env.example .env
-# Edit .env, then deploy on Railway (see HS58 README)
-```
-
-2) Run your own Provider, there is an example Python implementation of an OpenAI Provider in `subnet58/miner/providers/hs58-openai`. Follow the [README](subnet58/miner/providers/hs58-openai/README.md) and adapt the code if you want to provide a different service from OpenAI.
-
-### Step 2: Register on Subnet 58
+### Step 1: Register on Subnet 58
 
 ```bash
-btcli subnet register --netuid 58 --wallet.name my-miner --wallet.hotkey default
+btcli subnet register --netuid 58 --wallet.name hs58 --wallet.hotkey default
 ```
 
-This costs a small TAO recycle fee (amount is dynamic and depends on demand).
-
-### Step 3: Configure miner environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```bash
-# Your Polygon wallet (receives DRAIN payments from agents)
-POLYGON_WALLET=0x...
-# Private key for wallet ownership proof (same wallet)
-POLYGON_PRIVATE_KEY=5...
-# Your provider's API URL (the one you deployed in Step 1)
-API_URL=https://your-provider.up.railway.app
-# Optional: marketplace URL (default: https://www.handshake58.com)
-MARKETPLACE_URL=https://www.handshake58.com
-```
-
-### Step 4: Run locally or deploy on Railway
+### Step 2: Run
 
 **Local:**
 ```bash
 pip install -e .
-python neurons/miner.py --netuid 58 --wallet.name my-miner --wallet.hotkey default
+python neurons/miner.py --netuid 58 --wallet.name hs58 --wallet.hotkey default
 ```
 
-**Railway (recommended):**
-1. Fork this repo on GitHub
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub Repo
-3. Select your fork — **no Root Directory needed** (repo root is the project)
-4. Set **Service Type** to **Worker** (not Web) in Settings → Networking
-5. Add environment variables (see below)
-6. Deploy
-
-### Railway Environment Variables (Miner)
+**Railway:**
+1. Fork this repo → Railway → Deploy from GitHub → **Worker** service
+2. Set environment variables:
 
 ```bash
-# Bittensor wallet (base64-encoded files — see encoding instructions below)
 BT_HOTKEY_B64=...
-BT_COLDKEY_B64=...
 BT_COLDKEYPUB_B64=...
-WALLET_NAME=my-miner
+WALLET_NAME=hs58
 HOTKEY_NAME=default
-
-# Neuron type
 NEURON_TYPE=miner
-
-# Miner-specific
-POLYGON_WALLET=0x...
-POLYGON_PRIVATE_KEY=5...
-API_URL=https://your-provider.up.railway.app
-
-# Optional
 AXON_PORT=8091
 AXON_EXTERNAL_PORT=443
 ```
 
 ### Base64-Encode Wallet Files
 
-The Railway container decodes wallet files from environment variables at startup.
-
 **Linux / Mac:**
 ```bash
-BT_HOTKEY_B64=$(base64 -w 0 < ~/.bittensor/wallets/my-miner/hotkeys/default)
-BT_COLDKEY_B64=$(base64 -w 0 < ~/.bittensor/wallets/my-miner/coldkey)
-BT_COLDKEYPUB_B64=$(base64 -w 0 < ~/.bittensor/wallets/my-miner/coldkeypub)
+base64 -w 0 < ~/.bittensor/wallets/hs58/hotkeys/default
+base64 -w 0 < ~/.bittensor/wallets/hs58/coldkeypub
 ```
 
 **Windows PowerShell:**
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.bittensor\wallets\my-miner\hotkeys\default"))
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.bittensor\wallets\my-miner\coldkey"))
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.bittensor\wallets\my-miner\coldkeypub"))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.bittensor\wallets\hs58\hotkeys\default"))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.bittensor\wallets\hs58\coldkeypub"))
 ```
-
-Copy each output string into the corresponding Railway env var.
-
-The miner will:
-- Sign a wallet ownership proof (ECDSA)
-- Auto-register on the Handshake58 marketplace
-- Respond to validator health checks
 
 ---
 
 ## Run a Validator
 
-### Step 1: Register on Subnet 58
+### Step 1: Register + Stake
 
 ```bash
-btcli subnet register --netuid 58 --wallet.name my-validator --wallet.hotkey default
+btcli subnet register --netuid 58 --wallet.name hs58 --wallet.hotkey default
+btcli stake add --wallet.name hs58 --wallet.hotkey default --amount 100
 ```
 
-### Step 2: Stake TAO
+### Step 2: Run
 
-The validator needs stake for weight-setting permission:
-
-```bash
-btcli stake add --wallet.name my-validator --wallet.hotkey default --amount 100
-```
-
-> More stake = more influence. Check if you have VPERMIT:
-> ```bash
-> btcli subnets metagraph --netuid 58
-> ```
-
-### Step 3: Configure environment
-
-```bash
-cp .env.example .env
-```
-
-NOTE validators will require a paid Alchemy plan to make the necessary RPC calls. Select the Pay As You Go $5 per month plan.
-
-Edit `.env`:
-```bash
-# Alchemy Polygon RPC (recommended for reliable log queries)
-POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
-# Log query chunk size (Alchemy: 2000, public RPCs: 1000)
-LOG_CHUNK_SIZE=2000
-```
-
-### Step 4: Deploy on Railway
-
-1. Fork this repo → Railway → Deploy from GitHub → **Worker service**
-2. Set environment variables:
-
+**Railway:**
 ```bash
 BT_HOTKEY_B64=...
 BT_COLDKEYPUB_B64=...
-# BT_COLDKEY_B64=...   # optional; validator only needs hotkey + coldkeypub for set_weights
-WALLET_NAME=my-validator
+WALLET_NAME=hs58
 HOTKEY_NAME=default
 NEURON_TYPE=validator
-POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY
 ```
 
-3. Base64-encode wallet files the same way as for the miner (see above)
-
-> **Note:** Do not set `AUTOUPDATE_ENABLED=true` on Railway. Railway automatically rebuilds and redeploys your container when you push to the linked branch, so the built-in auto-update mechanism is not needed and would cause redundant restarts.
-
-The validator will:
-- Query all miners for wallet proofs (availability check)
-- Scan DRAIN `ChannelClaimed` events on Polygon (3-day window)
-- Score miners, winner takes all per category
-- Set weights on Bittensor
-
-### Step 4 Alternative: Deploy with Docker (self-hosted)
-
-If you're running on your own server instead of Railway, set `AUTOUPDATE_ENABLED=true` so the validator automatically checks for new commits on `main` after each validation round, pulls the latest code, and restarts.
-
+**Docker (self-hosted, with auto-update):**
 ```bash
 docker build -t hs58-validator .
 
 docker run -d --restart unless-stopped \
-  -e BT_HOTKEY_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/hotkeys/default)" \
-  -e BT_COLDKEYPUB_B64="$(base64 -w 0 < ~/.bittensor/wallets/my-validator/coldkeypub)" \
+  -e BT_HOTKEY_B64="$(base64 -w 0 < ~/.bittensor/wallets/hs58/hotkeys/default)" \
+  -e BT_COLDKEYPUB_B64="$(base64 -w 0 < ~/.bittensor/wallets/hs58/coldkeypub)" \
   -e NEURON_TYPE=validator \
-  -e WALLET_NAME=my-validator \
+  -e WALLET_NAME=hs58 \
   -e HOTKEY_NAME=default \
-  -e POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/YOUR_KEY \
   -e AUTOUPDATE_ENABLED=true \
   hs58-validator
 ```
 
-Auto-update is controlled by these optional env vars:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTOUPDATE_ENABLED` | `false` | Set to `true` for self-hosted Docker deployments |
-| `AUTOUPDATE_BRANCH` | `main` | Remote branch to track |
-
 ---
 
-## Troubleshooting
+## Configuration
 
-### Registration
-
-| Error | Solution |
-|-------|----------|
-| "Not enough balance" | Fund your coldkey with more TAO. Check: `btcli wallet balance --wallet.name my-miner` |
-| "Subnet not found" | Subnet 58 may not exist yet. Check: `btcli subnets list` |
-| "Already registered" | Your hotkey is already on the subnet — proceed to deployment |
-| Coldkey password prompt | Our wallets are unencrypted. Just press Enter |
-
-### Railway Deployment
-
-| Error | Solution |
-|-------|----------|
-| "Wallet keys not configured" | Set `BT_HOTKEY_B64` and `BT_COLDKEYPUB_B64` (optional: `BT_COLDKEY_B64` for staking/transfer; set_weights uses hotkey only) |
-| "SubstrateRequestException" | Bittensor network issue — service will retry automatically |
-| Axon serve failure | Ensure `AXON_EXTERNAL_PORT=443` is set (Railway uses HTTPS) |
-| Miner not found by validator | Check that `API_URL` in miner env points to a running provider |
-
-### Claiming / RPC
-
-| Error | Solution |
-|-------|----------|
-| "Rate limit exceeded" | Set `POLYGON_RPC_URL` to an Alchemy/Infura endpoint (free tier) |
-| "ContractFunctionExecutionError" | Usually `InvalidAmount` — channel already claimed or balance is 0 |
-| Log query timeouts | Reduce `LOG_CHUNK_SIZE` to 500 or 1000 |
+| Variable | Default | Used by | Description |
+|----------|---------|---------|-------------|
+| `PROBE_TIMEOUT_MS` | `5000` | Miner | HTTP probe timeout in milliseconds |
+| `REGISTRY_URLS` | `https://handshake58.com/api/validator/registry` | Validator | Provider registry URLs (comma-separated) |
+| `REGISTRY_CACHE` | `registry_cache.json` | Validator | Local fallback cache file |
+| `PROBES_PER_ROUND` | `5` | Validator | Random providers probed per epoch |
+| `ACCURACY_EMA_ALPHA` | `0.3` | Validator | EMA smoothing factor for miner scores |
+| `MAX_LATENCY_DEVIATION` | `2000` | Validator | Latency deviation threshold (ms) |
+| `MARKETPLACE_URL` | `https://www.handshake58.com` | Validator | Marketplace for probe alerts |
+| `AUTOUPDATE_ENABLED` | `false` | Both | Auto-update for Docker deployments |
+| `AUTOUPDATE_BRANCH` | `main` | Both | Git branch to track |
 
 ---
 
@@ -328,41 +195,34 @@ Auto-update is controlled by these optional env vars:
 ```
 HS58-subnet/
 ├── neurons/
-│   ├── miner.py              # Miner entry point
-│   └── validator.py           # Validator entry point
+│   ├── miner.py              # Neutral Monitor (HTTP probe)
+│   └── validator.py           # Miner Evaluator (consensus scoring)
 ├── subnet58/
-│   ├── __init__.py            # Version
-│   ├── protocol.py            # ProviderCheck Synapse (3 fields)
-│   ├── config.py              # Constants (DRAIN address, scoring weights)
-│   ├── base/                  # Base classes (from Bittensor template)
+│   ├── __init__.py            # Version (2.0.0)
+│   ├── protocol.py            # ProviderProbe Synapse (4 fields)
+│   ├── config.py              # Oracle configuration constants
+│   ├── registry_client.py     # Provider discovery + cache + alerts
+│   ├── base/                  # Base classes (Bittensor template)
 │   │   ├── neuron.py
 │   │   ├── miner.py
 │   │   └── validator.py
-│   ├── utils/
-│   │   ├── config.py          # CLI args and config
-│   │   └── misc.py
-│   └── validator/
-│       └── drain_scanner.py   # DRAIN event scanner (chunked, multi-RPC)
+│   └── utils/
+│       ├── config.py          # CLI args
+│       └── misc.py
 ├── requirements.txt
 ├── setup.py
 ├── .env.example
 ├── Dockerfile
-├── entrypoint.sh              # Decodes base64 wallet files, starts neuron
+├── entrypoint.sh              # Wallet decode + neuron start
 └── min_compute.yml
 ```
 
-## DRAIN Protocol
-
-**Contract:** `0x0C2B3aA1e80629D572b1f200e6DF3586B3946A8A` (Polygon Mainnet, DrainChannelV2)
-
-The validator scans `ChannelClaimed(bytes32,address,uint256)` events to measure real provider usage.
-
 ## Related Projects
 
-- [HS58](https://github.com/Handshake58/HS58) — Provider templates, docs, and hub
-- [DRAIN Protocol](https://github.com/kimbo128/DRAIN) — Core protocol, smart contracts, SDK
-- [Handshake58](https://www.handshake58.com) — Live marketplace
+- [Handshake58 Marketplace](https://www.handshake58.com) — AI agent marketplace with provider directory
+- [DRAIN Protocol](https://github.com/kimbo128/DRAIN) — Micropayment channels for AI services
+- [drain-mcp](https://www.npmjs.com/package/drain-mcp) — Agent MCP server for DRAIN + MPP
 
 ## License
 
-[PolyForm Shield 1.0](https://polyformproject.org/licenses/shield/1.0.0/) — You can use, modify, and deploy this software for any purpose **except** building a competing product. See [LICENSE](LICENSE) for details.
+[PolyForm Shield 1.0](https://polyformproject.org/licenses/shield/1.0.0/) — Use, modify, and deploy for any purpose **except** building a competing product. See [LICENSE](LICENSE).

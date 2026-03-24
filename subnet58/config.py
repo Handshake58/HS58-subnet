@@ -27,23 +27,19 @@ REGISTRY_CACHE_FILE = os.getenv("REGISTRY_CACHE", "registry_cache.json")
 # ---------------------------------------------------------------------------
 PROBE_TIMEOUT_MS = int(os.getenv("PROBE_TIMEOUT_MS", "5000"))
 PROBE_CONCURRENCY = int(os.getenv("PROBE_CONCURRENCY", "10"))
+PROBES_PER_ROUND = int(os.getenv("PROBES_PER_ROUND", "5"))
 
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
 ACCURACY_EMA_ALPHA = float(os.getenv("ACCURACY_EMA_ALPHA", "0.3"))
+MAX_LATENCY_DEVIATION = int(os.getenv("MAX_LATENCY_DEVIATION", "2000"))
 
 # ---------------------------------------------------------------------------
 # Bittensor Tempo
 # ---------------------------------------------------------------------------
 TEMPO = 360
 POLL_INTERVAL = 12
-
-# ---------------------------------------------------------------------------
-# Validator Weight Distribution
-# ---------------------------------------------------------------------------
-BURN_UID = 155
-BURN_FRACTION = 0.9
 
 # ---------------------------------------------------------------------------
 # Auto-Update (self-hosted Docker)
