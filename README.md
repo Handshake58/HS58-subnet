@@ -38,21 +38,24 @@ Marketplace Registry ──► Validator ──► sends ProviderProbe to all Mi
 
 Each epoch, the validator:
 
-1. Fetches the provider list from the Handshake58 marketplace registry
-2. Picks `PROBES_PER_ROUND` random providers (default: 5)
-3. Sends `ProviderProbe(target_url)` to **all** miners
-4. Computes **consensus**: majority vote on `reachable` + `status`, median `latency`
-5. Scores each miner: `0.4 * reachable_match + 0.3 * status_match + 0.3 * latency_closeness`
-6. Applies EMA smoothing and sets weights on Bittensor
+1. Fetches the provider list from the marketplace registry
+2. **Deterministically** selects `PROBES_PER_ROUND` providers using the epoch's block hash as seed — all validators probe the same targets
+3. Sends `ProviderProbe(target_url)` to all **active** miners (filters out validators and unreachable UIDs)
+4. Computes **consensus**: majority vote on `reachable` + `status`
+5. Scores each miner: `0.4 * reachable_match + 0.3 * status_match + 0.3 * latency_band`
+6. Applies EMA smoothing (α=0.3) and sets weights on Bittensor with inclusion confirmation
+
+The latency band is a binary check: `1.0` if response latency < `MAX_LATENCY_DEVIATION` (2000ms), `0.0` otherwise. This is deterministic across all validators regardless of geographic location.
 
 ### Anti-Gaming
 
 | Attack | Why it fails |
 |--------|-------------|
 | Lie about reachability | Consensus detects disagreement — your score drops |
-| Fake latency values | Median filters outliers; deviation > `MAX_LATENCY_DEVIATION` scores 0 |
+| Fake latency values | Binary band check; anything under threshold scores equally |
 | Collude with other miners | Requires >50% of miners; validators can spot-check independently |
 | Validator manipulates scores | Yuma consensus penalizes weight outliers |
+| Validators set different weights | Deterministic sampling ensures all validators agree |
 
 ### Protocol Agnostic
 
@@ -182,8 +185,7 @@ docker run -d --restart unless-stopped \
 | `REGISTRY_URLS` | `https://handshake58.com/api/validator/registry` | Validator | Provider registry URLs (comma-separated) |
 | `REGISTRY_CACHE` | `registry_cache.json` | Validator | Local fallback cache file |
 | `PROBES_PER_ROUND` | `5` | Validator | Random providers probed per epoch |
-| `ACCURACY_EMA_ALPHA` | `0.3` | Validator | EMA smoothing factor for miner scores |
-| `MAX_LATENCY_DEVIATION` | `2000` | Validator | Latency deviation threshold (ms) |
+| `MAX_LATENCY_DEVIATION` | `2000` | Validator | Latency band threshold in ms (binary: below = pass) |
 | `MARKETPLACE_URL` | `https://www.handshake58.com` | Validator | Marketplace for probe alerts |
 | `AUTOUPDATE_ENABLED` | `false` | Both | Auto-update for Docker deployments |
 | `AUTOUPDATE_BRANCH` | `main` | Both | Git branch to track |
@@ -198,7 +200,7 @@ HS58-subnet/
 │   ├── miner.py              # Neutral Monitor (HTTP probe)
 │   └── validator.py           # Miner Evaluator (consensus scoring)
 ├── subnet58/
-│   ├── __init__.py            # Version (2.0.0)
+│   ├── __init__.py            # Version (2.1.0)
 │   ├── protocol.py            # ProviderProbe Synapse (4 fields)
 │   ├── config.py              # Oracle configuration constants
 │   ├── registry_client.py     # Provider discovery + cache + alerts

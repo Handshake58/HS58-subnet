@@ -26,5 +26,4 @@ miner:
   gpu:
     required: false
   network:
-    # Miner must have a running AI provider API
-    note: "Requires a DRAIN-compatible AI provider at API_URL"
+    note: "Neutral Monitor — probes provider URLs via HTTP GET. No provider API required."

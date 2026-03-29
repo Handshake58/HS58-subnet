@@ -164,19 +164,26 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Convert to uint16
         uids = self.metagraph.uids
-        result, msg = self.subtensor.set_weights(
-            wallet=self.wallet,
-            netuid=self.config.netuid,
-            uids=uids,
-            weights=raw_weights,
-            wait_for_finalization=False,
-            wait_for_inclusion=False,
-            version_key=self.spec_version,
-        )
-        if result:
-            bt.logging.info("set_weights on chain successfully!")
-        else:
-            bt.logging.error(f"set_weights failed: {msg}")
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            result, msg = self.subtensor.set_weights(
+                wallet=self.wallet,
+                netuid=self.config.netuid,
+                uids=uids,
+                weights=raw_weights,
+                wait_for_finalization=False,
+                wait_for_inclusion=True,
+                version_key=self.spec_version,
+            )
+            if result:
+                bt.logging.info("set_weights on chain successfully!")
+                return
+            bt.logging.warning(
+                f"set_weights attempt {attempt+1}/{max_retries+1} failed: {msg}"
+            )
+            if attempt < max_retries:
+                time.sleep(12)
+        bt.logging.error(f"set_weights failed after {max_retries+1} attempts: {msg}")
 
     def _check_for_update(self):
         """

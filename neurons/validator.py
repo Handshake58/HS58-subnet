@@ -1,16 +1,18 @@
 # Handshake58 Subnet 58 - Validator (Network Oracle)
 #
 # 1. Fetches provider list from marketplace registry
-# 2. Sends ProviderProbe to all miners for random provider subset
-# 3. Computes consensus (majority vote on reachable/status, median latency)
-# 4. Scores miners by agreement with consensus (probe accuracy)
-# 5. Sets weights via EMA-smoothed accuracy scores
+# 2. Deterministically selects providers via block-hash seed (Yuma-safe)
+# 3. Sends ProviderProbe to all active miners
+# 4. Computes consensus (majority vote on reachable/status)
+# 5. Scores miners by agreement with consensus (probe accuracy)
+# 6. Sets weights via EMA-smoothed accuracy scores
 from dotenv import load_dotenv
 load_dotenv()
 
 import sys
 import time
 import random
+import hashlib
 from collections import Counter
 from statistics import median
 from dataclasses import dataclass
@@ -23,7 +25,7 @@ import subnet58
 from subnet58.protocol import ProviderProbe
 from subnet58.base.validator import BaseValidatorNeuron
 from subnet58.registry_client import fetch_providers, send_probe_alert
-from subnet58.config import PROBES_PER_ROUND, MAX_LATENCY_DEVIATION
+from subnet58.config import PROBES_PER_ROUND, MAX_LATENCY_DEVIATION, TEMPO
 
 
 @dataclass
@@ -47,6 +49,36 @@ class Validator(BaseValidatorNeuron):
         self.load_state()
         bt.logging.info("Network Oracle validator ready.")
 
+    def _deterministic_sample(self, providers: list, n: int) -> list:
+        """
+        Select providers deterministically using the epoch's block hash.
+        All validators on the same epoch pick the same providers,
+        which is required for Yuma consensus weight agreement.
+
+        Providers are sorted by probeUrl before sampling to ensure
+        consistent ordering regardless of registry API response order.
+        """
+        sorted_providers = sorted(providers, key=lambda p: p.get("probeUrl", ""))
+
+        epoch_block = (self.block // TEMPO) * TEMPO
+        try:
+            block_hash = self.subtensor.get_block_hash(epoch_block)
+            seed = int(hashlib.sha256(block_hash.encode()).hexdigest(), 16)
+        except Exception as e:
+            bt.logging.warning(f"Could not get block hash, falling back to epoch number: {e}")
+            seed = epoch_block
+
+        rng = random.Random(seed)
+        return rng.sample(sorted_providers, n)
+
+    def _get_active_miner_uids(self) -> List[int]:
+        """Filter UIDs to only active miners with a reachable axon."""
+        return [
+            uid for uid in range(self.metagraph.n.item())
+            if self.metagraph.axons[uid].ip != "0.0.0.0"
+            and uid != self.uid
+        ]
+
     async def forward(self):
         """
         One validation round: probe providers, score miners by consensus.
@@ -59,15 +91,20 @@ class Validator(BaseValidatorNeuron):
             return
 
         n_probes = min(PROBES_PER_ROUND, len(providers))
-        targets = random.sample(providers, n_probes)
+        targets = self._deterministic_sample(providers, n_probes)
         bt.logging.info(
-            f"Probing {n_probes}/{len(providers)} providers this round"
+            f"Probing {n_probes}/{len(providers)} providers this round "
+            f"(deterministic seed from epoch block {(self.block // TEMPO) * TEMPO})"
         )
 
-        miner_uids = list(range(self.metagraph.n.item()))
-        axons = [self.metagraph.axons[uid] for uid in miner_uids]
+        miner_uids = self._get_active_miner_uids()
+        if not miner_uids:
+            bt.logging.warning("No active miners found — skipping round.")
+            return
 
-        # Accumulate accuracy per miner across all probes
+        axons = [self.metagraph.axons[uid] for uid in miner_uids]
+        bt.logging.info(f"Querying {len(miner_uids)} active miners")
+
         accuracy_sums = np.zeros(len(miner_uids), dtype=np.float32)
         probe_count = 0
 
@@ -145,7 +182,10 @@ class Validator(BaseValidatorNeuron):
         """
         Score a single miner response against consensus.
 
-        Weights: 40% reachable match, 30% status match, 30% latency closeness.
+        Weights: 40% reachable match, 30% status match, 30% latency band.
+        Latency uses a binary band check (< MAX_LATENCY_DEVIATION = 1.0, else 0.0)
+        instead of median deviation — this is deterministic across all validators
+        regardless of geographic location.
         """
         if response is None or response.probe_reachable is None:
             return 0.0
@@ -154,11 +194,10 @@ class Validator(BaseValidatorNeuron):
         status_match = float(response.probe_status == consensus.status)
 
         lat = response.probe_latency_ms or 0
-        if consensus.median_latency_ms > 0 and lat > 0:
-            deviation = abs(lat - consensus.median_latency_ms)
-            latency_score = max(0.0, 1.0 - deviation / MAX_LATENCY_DEVIATION)
+        if lat > 0:
+            latency_score = 1.0 if lat < MAX_LATENCY_DEVIATION else 0.0
         else:
-            latency_score = reachable_match
+            latency_score = 0.0 if consensus.reachable else reachable_match
 
         return 0.4 * reachable_match + 0.3 * status_match + 0.3 * latency_score
 

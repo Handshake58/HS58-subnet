@@ -32,7 +32,7 @@ PROBES_PER_ROUND = int(os.getenv("PROBES_PER_ROUND", "5"))
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
-ACCURACY_EMA_ALPHA = float(os.getenv("ACCURACY_EMA_ALPHA", "0.3"))
+# EMA alpha is set via --neuron.moving_average_alpha (default 0.3, see utils/config.py)
 MAX_LATENCY_DEVIATION = int(os.getenv("MAX_LATENCY_DEVIATION", "2000"))
 
 # ---------------------------------------------------------------------------
