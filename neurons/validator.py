@@ -156,19 +156,27 @@ class Validator(BaseValidatorNeuron):
         )
 
     @staticmethod
-    def _compute_consensus(responses) -> Optional[Consensus]:
+    def _field(r, name):
+        """Access a probe field from either a Synapse object or deserialized dict."""
+        if isinstance(r, dict):
+            return r.get(name)
+        return getattr(r, name, None)
+
+    @classmethod
+    def _compute_consensus(cls, responses) -> Optional[Consensus]:
         valid = [
             r for r in responses
-            if r is not None and r.probe_reachable is not None
+            if r is not None and cls._field(r, "probe_reachable") is not None
         ]
         if not valid:
             return None
 
-        reachable_votes = [r.probe_reachable for r in valid]
-        status_votes = [r.probe_status for r in valid]
+        reachable_votes = [cls._field(r, "probe_reachable") for r in valid]
+        status_votes = [cls._field(r, "probe_status") for r in valid]
         latencies = [
-            r.probe_latency_ms for r in valid
-            if r.probe_latency_ms is not None and r.probe_latency_ms > 0
+            cls._field(r, "probe_latency_ms") for r in valid
+            if cls._field(r, "probe_latency_ms") is not None
+            and cls._field(r, "probe_latency_ms") > 0
         ]
 
         return Consensus(
@@ -177,8 +185,8 @@ class Validator(BaseValidatorNeuron):
             median_latency_ms=int(median(latencies)) if latencies else 0,
         )
 
-    @staticmethod
-    def _probe_accuracy(response, consensus: Consensus) -> float:
+    @classmethod
+    def _probe_accuracy(cls, response, consensus: Consensus) -> float:
         """
         Score a single miner response against consensus.
 
@@ -187,13 +195,17 @@ class Validator(BaseValidatorNeuron):
         instead of median deviation — this is deterministic across all validators
         regardless of geographic location.
         """
-        if response is None or response.probe_reachable is None:
+        if response is None or cls._field(response, "probe_reachable") is None:
             return 0.0
 
-        reachable_match = float(response.probe_reachable == consensus.reachable)
-        status_match = float(response.probe_status == consensus.status)
+        reachable_match = float(
+            cls._field(response, "probe_reachable") == consensus.reachable
+        )
+        status_match = float(
+            cls._field(response, "probe_status") == consensus.status
+        )
 
-        lat = response.probe_latency_ms or 0
+        lat = cls._field(response, "probe_latency_ms") or 0
         if lat > 0:
             latency_score = 1.0 if lat < MAX_LATENCY_DEVIATION else 0.0
         else:
