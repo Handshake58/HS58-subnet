@@ -78,6 +78,10 @@ def send_probe_alert(
 ) -> None:
     """Report a probe failure to the marketplace (fire-and-forget)."""
     url = (marketplace_url or MARKETPLACE_URL) + "/api/validator/probe-alert"
+    headers = {}
+    validator_secret = os.getenv("VALIDATOR_SECRET")
+    if validator_secret:
+        headers["x-validator-secret"] = validator_secret
     try:
         requests.post(
             url,
@@ -86,6 +90,7 @@ def send_probe_alert(
                 "probeUrl": probe_url,
                 "reachable": consensus_reachable,
             },
+            headers=headers,
             timeout=5,
         )
     except Exception as e:
