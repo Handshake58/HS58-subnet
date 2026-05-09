@@ -184,7 +184,7 @@ docker run -d --restart unless-stopped \
 | Variable | Default | Used by | Description |
 |----------|---------|---------|-------------|
 | `PROBE_TIMEOUT_MS` | `5000` | Miner | HTTP probe timeout in milliseconds |
-| `REGISTRY_URLS` | `https://handshake58.com/api/validator/registry` | Validator | Provider registry URLs (comma-separated) |
+| `REGISTRY_URLS` | `https://handshake58.com/api/validator/registry,https://mpp.dev/api/services` | Validator | Provider registry URLs (comma-separated, validators try them in order with cache fallback) |
 | `REGISTRY_CACHE` | `registry_cache.json` | Validator | Local fallback cache file |
 | `PROBES_PER_ROUND` | `5` | Validator | Random providers probed per epoch |
 | `MAX_LATENCY_DEVIATION` | `2000` | Validator | Latency band threshold in ms (binary: below = pass) |
@@ -202,7 +202,7 @@ HS58-subnet/
 │   ├── miner.py              # Neutral Monitor (HTTP probe)
 │   └── validator.py           # Miner Evaluator (consensus scoring)
 ├── subnet58/
-│   ├── __init__.py            # Version (2.1.0)
+│   ├── __init__.py            # Version (2.1.1)
 │   ├── protocol.py            # ProviderProbe Synapse (4 fields)
 │   ├── config.py              # Oracle configuration constants
 │   ├── registry_client.py     # Provider discovery + cache + alerts

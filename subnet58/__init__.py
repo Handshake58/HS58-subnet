@@ -1,7 +1,7 @@
 # Handshake58 - Bittensor Subnet 58
 # Network Oracle: Probe-based provider monitoring via consensus scoring
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 version_split = __version__.split(".")
 __spec_version__ = (
     (1000 * int(version_split[0]))

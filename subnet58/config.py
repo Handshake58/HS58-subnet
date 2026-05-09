@@ -16,7 +16,7 @@ DEFAULT_REGISTRIES = [
     r.strip()
     for r in os.getenv(
         "REGISTRY_URLS",
-        "https://handshake58.com/api/validator/registry"
+        "https://handshake58.com/api/validator/registry,https://mpp.dev/api/services"
     ).split(",")
     if r.strip()
 ]
