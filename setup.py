@@ -45,4 +45,9 @@ setup(
     license="PolyForm-Shield-1.0.0",
     python_requires=">=3.9",
     install_requires=requirements,
+    extras_require={
+        "dev": [
+            "pytest>=7.0",
+        ],
+    },
 )

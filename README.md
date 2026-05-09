@@ -1,5 +1,7 @@
 # Handshake58 - Bittensor Subnet 58
 
+[![CI](https://github.com/Handshake58/HS58-subnet/actions/workflows/ci.yml/badge.svg)](https://github.com/Handshake58/HS58-subnet/actions/workflows/ci.yml)
+
 **Network Oracle: Decentralized provider monitoring for AI services.**
 
 Miners probe provider endpoints worldwide. Validators score miners by consensus accuracy. Honest monitors earn TAO — no wallets, no staking, no provider setup needed.
@@ -218,6 +220,17 @@ HS58-subnet/
 ├── entrypoint.sh              # Wallet decode + neuron start
 └── min_compute.yml
 ```
+
+## Development
+
+Run the unit tests locally:
+
+```bash
+pip install -e .[dev]
+pytest tests/ -v
+```
+
+The CI suite covers the Yuma-proof v2.1.0 logic: deterministic provider sampling, the binary latency band, the registry failover chain, and the active-miner UID filter. Every push and pull request to `main` runs the suite on Python 3.9, 3.10, and 3.11.
 
 ## Related Projects
 
