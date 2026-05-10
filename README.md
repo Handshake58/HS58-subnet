@@ -223,14 +223,25 @@ HS58-subnet/
 
 ## Development
 
-Run the unit tests locally:
+Install the development extras and run the test suite:
 
 ```bash
 pip install -e .[dev]
-pytest tests/ -v
+pytest tests/ -v --cov                # unit tests with coverage
+ruff check .                          # lint (syntax + undefined names)
 ```
 
-The CI suite covers the Yuma-proof v2.1.0 logic: deterministic provider sampling, the binary latency band, the registry failover chain, and the active-miner UID filter. Every push and pull request to `main` runs the suite on Python 3.9, 3.10, and 3.11.
+The CI runs two jobs on every push and pull request to `main`:
+
+- **lint**: `ruff` with a conservative ruleset (syntax errors, invalid
+  comparisons, undefined names) — the same rules GitHub recommends for
+  Python actions. Does not enforce style.
+- **test**: `pytest` with coverage on Python 3.9, 3.10, and 3.11. The
+  coverage XML is uploaded as an artifact for downstream tooling.
+
+The unit tests cover the Yuma-proof v2.1.0 logic — deterministic provider
+sampling, binary latency band, consensus computation, registry failover,
+the active-miner UID filter, and the `ProviderProbe` Synapse contract.
 
 ## Related Projects
 

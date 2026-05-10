@@ -1,0 +1,47 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Conservative ruleset: only catch genuine bugs (syntax errors, undefined
+# names, broken comparisons). No style or import-hygiene enforcement so
+# that existing code stays green and CI does not block on cosmetic nits.
+# Matches the rules used by GitHub's recommended Python actions.
+select = [
+    "E9",   # syntax errors
+    "F63",  # invalid comparisons
+    "F7",   # syntax errors in expressions
+    "F82",  # undefined names
+]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["subnet58", "neurons"]
+branch = true
+omit = [
+    "tests/*",
+    "*/base/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
