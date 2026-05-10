@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a bug in the miner or validator
+title: "[bug] "
+labels:
+  - "bug"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in
+        as much detail as possible so we can reproduce and fix it quickly.
+
+        For security issues, please use the private channels described in
+        [SECURITY.md](../blob/main/SECURITY.md) instead of opening an issue.
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Component
+      description: Which neuron is affected?
+      options:
+        - Miner
+        - Validator
+        - Both
+        - Other (please describe)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `python -c "import subnet58; print(subnet58.__version__)"` or the git SHA you are running.
+      placeholder: "2.1.1 or commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Local (pip install -e .)
+        - Docker (self-hosted)
+        - Railway
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste any relevant log output. Redact wallet hotkeys and secrets.
+      render: shell
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Python version, OS, hardware, network, anything else relevant.

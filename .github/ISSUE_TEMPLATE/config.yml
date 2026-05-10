@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Handshake58/HS58-subnet/security/advisories/new
+    about: Report a security issue privately. Do not open a public issue.
+  - name: Handshake58 marketplace
+    url: https://www.handshake58.com
+    about: Marketplace, oracle dashboard, and provider directory.
