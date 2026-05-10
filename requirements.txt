@@ -1,4 +1,4 @@
-bittensor>=7.0.0
+bittensor>=9.12.2
 bittensor-cli>=9.0.0
 httpx>=0.27.0
 requests>=2.31.0
