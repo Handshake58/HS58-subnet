@@ -4,7 +4,7 @@
 
 **Network Oracle: Decentralized provider monitoring for AI services.**
 
-Miners probe provider endpoints worldwide. Validators score miners by consensus accuracy. Honest monitors earn TAO — no wallets, no staking, no provider setup needed.
+Miners probe provider endpoints worldwide. Validators score miners by consensus accuracy. Honest monitors earn TAO without running a provider, Polygon wallet, or validator stake. Miner participation still requires a Bittensor wallet, funded coldkey, and subnet registration.
 
 ---
 
@@ -97,7 +97,7 @@ btcli wallet overview --wallet.name hs58
 
 ## Run a Miner
 
-Miners are **Neutral Monitors**. No provider, no wallet, no registration — just probe URLs.
+Miners are **Neutral Monitors**. No provider, Polygon wallet, or validator stake is required. You still need a Bittensor wallet and subnet registration before the miner can receive probe traffic.
 
 ### Step 1: Register on Subnet 58
 
